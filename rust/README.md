@@ -1,5 +1,26 @@
 # CodexBar for Windows
 
+## 中文目录说明：核心业务与服务商适配
+
+本目录包含供 Tauri 桌面应用调用的核心 Rust 代码及命令行相关功能，不是另一套前端界面。下方英文介绍保留自上游，当前上传和协作状态请参见 [PUBLICATION.md](../PUBLICATION.md)。
+
+| 路径 | 中文说明 |
+| --- | --- |
+| `src/providers/` | 各服务商额度接口请求、认证和返回数据处理。 |
+| `src/settings/` | 程序设置、API Key 等配置管理。 |
+| `src/storage/` | 本地数据路径、持久化、迁移和一致性处理。 |
+| `src/browser/` | 浏览器相关数据读取与处理。 |
+| `src/core/` | 额度模型、核心数据结构与公共业务逻辑。 |
+| `src/locale/` | 多语言文本资源。 |
+| `src/cli/` | 命令行功能。 |
+| `installer/` | 安装包制作脚本。 |
+| `icons/` | 程序图标资源。 |
+| `Cargo.toml` | 本 Rust 子项目的依赖与编译配置。 |
+
+额度获取异常优先从 `src/providers/` 查起；设置和凭据持久化问题需要结合 `src/settings/`、`src/storage/` 与桌面层调用一起检查。
+
+---
+
 A Windows port of [CodexBar](https://github.com/steipete/CodexBar) - a system tray application for monitoring AI provider usage limits.
 
 ![CodexBar Windows](screenshots/tray-icon.png)
