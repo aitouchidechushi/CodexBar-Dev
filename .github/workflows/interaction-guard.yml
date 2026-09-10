@@ -1,0 +1,19 @@
+name: Interaction guard
+
+on:
+  # Disabled for ordinary collaboration: inherited guard auto-closes contributions.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  guard:
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@v4
+      - run: node .github/scripts/interaction-guard.mjs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

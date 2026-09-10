@@ -1,0 +1,172 @@
+# Xcode user/session
+xcuserdata/
+
+# Build products
+.build/
+DerivedData
+
+# Bundles / artifacts
+# Main app bundle (any variation)
+CodexBar.app/
+CodexBar *.app/
+CodexBar_*.app/
+Codexbar.app/
+# Release artifacts
+*.ipa
+*.dSYM*
+*.zip
+*.delta
+*.dmg
+*.pkg
+*.tar.gz
+*.tgz
+Icon.iconset
+debug_*.swift
+
+# Misc
+.DS_Store
+
+# Debug/analysis docs
+docs/*-analysis.md
+
+# Swift Package Manager metadata (leave sources tracked)
+# Packages/
+# Package.resolved
+
+# Rust build artifacts
+rust/target/
+target/
+
+# Generated Tauri schemas from local desktop checks
+apps/desktop-tauri/src-tauri/gen/schemas/*.json
+rust/gen/schemas/*.json
+
+# Claude temp files
+tmpclaude-*
+.claude/
+.factory/
+.clawpatch/
+
+# IDE
+.idea/
+.vscode/
+.vs/
+*.swp
+*.swo
+*.suo
+*.user
+node_modules/
+dist/
+.pnpm-store/
+.npm/
+.vite/
+coverage/
+*.tsbuildinfo
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+nul
+
+# Local scripts and env files
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+/.local/
+# Build and development scripts are source: do not ignore scripts/ or *.ps1.
+# Public documentation under docs/ is trackable. Keep local planning material out.
+/docs/superpowers/plans/
+/docs/superpowers/specs/
+/docs/ui-parity-workflow.md
+/scripts/crop_vm_preferences_proof.sh
+/scripts/fetch_vm_preferences_proof.sh
+/scripts/run_vm_provider_proof.sh
+/scripts/vm/*
+!/scripts/macos-windows-cross-build.sh
+!/scripts/run_vm_provider_proof.sh
+!/scripts/vm/provider_osclick_proof_unc.ps1
+!/scripts/vm/run_provider_proof_remote.sh
+!/scripts/vm/setup_syncthing_windows.ps1
+!/scripts/vm/windows_debug_relaunch.ps1
+# version.env contains shared version numbers, not credentials; keep it tracked.
+.stfolder-win-codexbar/
+
+# Local Codex/agent state and review artifacts
+.codex/
+.omx/
+.omc/
+.superpowers/
+/AGENTS.md
+
+# Stale localized READMEs are kept locally but excluded from the first public release
+/README.es-MX.md
+/README.ja-JP.md
+/README.ko-KR.md
+/README.zh-TW.md
+
+# Local build, QA, proof, and handoff outputs
+/target-*/
+/output/
+/tmp/
+/artifacts/
+/release-assets/
+/visual-proof-*/
+/logs/
+/backups/
+.cache/
+.playwright/
+test-results/
+playwright-report/
+*.log
+*.dmp
+*.pdb
+*.ilk
+
+# Local credentials and code-signing material
+*.pfx
+*.p12
+*.pem
+*.key
+*.cer
+*.crt
+*.snk
+.secrets/
+# Runtime data copied into the repository root must not become source files.
+/api-keys.json
+/credentials.json
+/settings.json
+/manual-cookies.json
+/token-accounts.json
+/kimi-accounts.json
+/provider-last-good.json
+/migration-journal.json
+/migration-backups/
+
+# VM proof artifacts (screenshots/captures from Windows VM sessions)
+win11-*.png
+win11-*.ppm
+win11-*.json
+session1-*.png
+session1-*.txt
+*.ppm
+
+# Throwaway launch scripts
+launch-cb-nossh.cmd
+launch-cb.cmd
+launch-cb*.ps1
+run-cb.ps1
+check_windows.ps1
+
+# Stray Windows binaries (artifacts of cargo build, not source)
+codexbar.exe
+codexbar-desktop-tauri.exe
+/*.exe
+*.exe
+*.msi
+*.msix
+
+# Local git worktrees
+.worktrees/
+.atl/

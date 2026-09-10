@@ -1,0 +1,517 @@
+/* ── Floating capacity bar (always-on-top overlay window) ───────────── */
+/* The webview's html/body would otherwise paint the app's dark theme
+ * background — force it transparent so only the pills are visible.
+ * The `floatbar-window` class is added by FloatBar.tsx on mount. */
+body.floatbar-window,
+html:has(body.floatbar-window) {
+  background: transparent !important;
+  margin: 0;
+  padding: 0;
+}
+body.floatbar-window #root {
+  background: transparent !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+}
+
+/* Container is fully transparent — the pills float individually so the
+ * group reads like a compact widget sitting on the Windows taskbar. */
+.floatbar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(4px * var(--floatbar-scale, 1));
+  padding: 0;
+  background: transparent;
+  color: rgba(24, 42, 54, 0.94);
+  font: 600 calc(10px * var(--floatbar-scale, 1))/1 -apple-system, system-ui, "Segoe UI", sans-serif;
+  -webkit-user-select: none;
+  user-select: none;
+  width: max-content;
+  height: max-content;
+}
+.floatbar--horizontal {
+  flex-wrap: wrap;
+  max-width: var(--floatbar-max-width, calc(100vw - 16px));
+}
+.floatbar--vertical {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: calc(3px * var(--floatbar-scale, 1));
+}
+/* Compact line grip, matching the small handle affordance in Windows taskbar
+ * widgets while still giving the user a clear drag target. */
+.floatbar__handle {
+  width: calc(10px * var(--floatbar-scale, 1));
+  height: calc(16px * var(--floatbar-scale, 1));
+  flex-shrink: 0;
+  cursor: grab;
+  border-radius: calc(3px * var(--floatbar-scale, 1));
+  background-color: transparent;
+  background-image:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(25, 47, 60, 0.68) 0,
+      rgba(25, 47, 60, 0.68) 1px,
+      transparent 1px,
+      transparent calc(4px * var(--floatbar-scale, 1))
+    );
+  background-size: calc(8px * var(--floatbar-scale, 1)) calc(12px * var(--floatbar-scale, 1));
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0.85;
+  transition: opacity 120ms ease, background-color 120ms ease;
+}
+.floatbar__handle:hover {
+  opacity: 1;
+  background-color: rgba(255, 255, 255, 0.22);
+}
+.floatbar--vertical .floatbar__handle {
+  width: calc(16px * var(--floatbar-scale, 1));
+  height: calc(10px * var(--floatbar-scale, 1));
+  background-image:
+    repeating-linear-gradient(
+      to right,
+      rgba(25, 47, 60, 0.68) 0,
+      rgba(25, 47, 60, 0.68) 1px,
+      transparent 1px,
+      transparent calc(4px * var(--floatbar-scale, 1))
+    );
+  background-size: calc(12px * var(--floatbar-scale, 1)) calc(8px * var(--floatbar-scale, 1));
+}
+.floatbar__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(3px * var(--floatbar-scale, 1));
+  padding: calc(1px * var(--floatbar-scale, 1)) calc(5px * var(--floatbar-scale, 1));
+  min-height: calc(16px * var(--floatbar-scale, 1));
+  border-radius: calc(7px * var(--floatbar-scale, 1));
+  background: rgba(213, 231, 242, 0.74);
+  backdrop-filter: blur(16px) saturate(145%);
+  -webkit-backdrop-filter: blur(16px) saturate(145%);
+  border: 1px solid rgba(255, 255, 255, 0.48);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.58),
+    0 1px 2px rgba(14, 42, 62, 0.22);
+  white-space: nowrap;
+  cursor: grab;
+}
+.floatbar__pill *,
+.floatbar__cost-pill *,
+.floatbar__handle *,
+.floatbar__empty * {
+  pointer-events: none;
+}
+.floatbar__provider-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.floatbar__cost-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(4px * var(--floatbar-scale, 1));
+  min-height: calc(16px * var(--floatbar-scale, 1));
+  padding: calc(1px * var(--floatbar-scale, 1)) calc(6px * var(--floatbar-scale, 1));
+  border-radius: calc(7px * var(--floatbar-scale, 1));
+  background: rgba(213, 231, 242, 0.74);
+  backdrop-filter: blur(16px) saturate(145%);
+  -webkit-backdrop-filter: blur(16px) saturate(145%);
+  border: 1px solid var(--brand, rgba(255, 255, 255, 0.48));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.58),
+    0 1px 2px rgba(14, 42, 62, 0.22);
+  white-space: nowrap;
+  cursor: grab;
+}
+.floatbar__cost-items {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(5px * var(--floatbar-scale, 1));
+  line-height: 1;
+}
+.floatbar__cost-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: calc(2px * var(--floatbar-scale, 1));
+  font-variant-numeric: tabular-nums;
+}
+.floatbar__cost-label {
+  font-size: 0.78em;
+  font-weight: 600;
+  opacity: 0.66;
+}
+.floatbar__cost-value {
+  font-weight: 700;
+}
+.floatbar--vertical .floatbar__cost-pill {
+  flex-direction: column;
+  gap: calc(2px * var(--floatbar-scale, 1));
+}
+.floatbar--vertical .floatbar__cost-items {
+  flex-direction: column;
+  gap: calc(2px * var(--floatbar-scale, 1));
+}
+.floatbar__pill--warn {
+  background: rgba(250, 221, 171, 0.84);
+  border-color: rgba(255, 246, 219, 0.62);
+  color: #7a4c05;
+}
+.floatbar__pill--crit {
+  background: rgba(255, 194, 194, 0.86);
+  border-color: rgba(255, 236, 236, 0.66);
+  color: #7f1d1d;
+}
+.floatbar__pill--neutral {
+  background: rgba(213, 218, 224, 0.84);
+  border-color: rgba(244, 247, 250, 0.62);
+  color: #46515b;
+}
+.floatbar__text {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(4px * var(--floatbar-scale, 1));
+  line-height: 1;
+}
+.floatbar__pct {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  line-height: 1;
+}
+.floatbar__capacity-metric {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(2px * var(--floatbar-scale, 1));
+}
+.floatbar__capacity-metric + .floatbar__capacity-metric {
+  padding-left: calc(4px * var(--floatbar-scale, 1));
+  border-left: 1px solid currentColor;
+}
+.floatbar__capacity-label {
+  max-width: calc(74px * var(--floatbar-scale, 1));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.72em;
+  font-weight: 600;
+  opacity: 0.7;
+}
+.floatbar__credential-label {
+  max-width: calc(92px * var(--floatbar-scale, 1));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.86em;
+  font-weight: 600;
+  opacity: 0.76;
+}
+.floatbar__reset {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(2px * var(--floatbar-scale, 1));
+  color: currentColor;
+  opacity: 0.72;
+  line-height: 1;
+}
+.floatbar__reset-icon-svg {
+  display: block;
+  flex-shrink: 0;
+}
+.floatbar__reset-time {
+  font-size: 0.86em;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.floatbar--vertical .floatbar__text {
+  flex-direction: column;
+  align-items: center;
+  gap: calc(1px * var(--floatbar-scale, 1));
+}
+.floatbar--vertical .floatbar__capacity-metric + .floatbar__capacity-metric {
+  padding-top: calc(2px * var(--floatbar-scale, 1));
+  padding-left: 0;
+  border-top: 1px solid currentColor;
+  border-left: 0;
+}
+.floatbar__empty {
+  display: inline-flex;
+  align-items: center;
+  min-height: calc(16px * var(--floatbar-scale, 1));
+  padding: 0 calc(8px * var(--floatbar-scale, 1));
+  border-radius: calc(7px * var(--floatbar-scale, 1));
+  background: rgba(213, 231, 242, 0.74);
+  backdrop-filter: blur(16px) saturate(145%);
+  -webkit-backdrop-filter: blur(16px) saturate(145%);
+  opacity: 0.75;
+  font-weight: 500;
+}
+
+/* ── Light-background mode ─────────────────────────────────────────────
+ * Inverts the palette: light glass + dark text for legibility over a
+ * bright desktop. Brand-colored borders still win via --brand.
+ */
+.floatbar--light-bg {
+  color: rgba(20, 22, 26, 0.95);
+}
+.floatbar--light-bg .floatbar__pill,
+.floatbar--light-bg .floatbar__cost-pill,
+.floatbar--light-bg .floatbar__empty {
+  background: rgba(248, 252, 255, 0.82);
+  border-color: rgba(255, 255, 255, 0.64);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+.floatbar--light-bg .floatbar__pill--warn {
+  border-color: #b45309;
+  color: #92400e;
+}
+.floatbar--light-bg .floatbar__pill--crit {
+  border-color: #b91c1c;
+  color: #991b1b;
+}
+.floatbar--light-bg .floatbar__handle {
+  background-color: transparent;
+  background-image:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(20, 22, 26, 0.75) 0,
+      rgba(20, 22, 26, 0.75) 1px,
+      transparent 1px,
+      transparent calc(4px * var(--floatbar-scale, 1))
+    );
+}
+.floatbar--light-bg .floatbar__handle:hover {
+  background-color: rgba(20, 22, 26, 0.08);
+}
+.floatbar--light-bg.floatbar--vertical .floatbar__handle {
+  background-image:
+    repeating-linear-gradient(
+      to right,
+      rgba(20, 22, 26, 0.75) 0,
+      rgba(20, 22, 26, 0.75) 1px,
+      transparent 1px,
+      transparent calc(4px * var(--floatbar-scale, 1))
+    );
+}
+
+/* ── Original floating-glass style ─────────────────────────────────── */
+.floatbar--floating {
+  color: rgba(255, 255, 255, 0.95);
+}
+.floatbar--floating .floatbar__handle {
+  border-radius: 999px;
+  background-color: rgba(255, 255, 255, 0.10);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  background-image:
+    radial-gradient(circle, rgba(255, 255, 255, 0.7) 1px, transparent 1.5px);
+  background-size: calc(3px * var(--floatbar-scale, 1)) calc(4px * var(--floatbar-scale, 1));
+  background-repeat: repeat;
+}
+.floatbar--floating .floatbar__handle:hover {
+  background-color: rgba(255, 255, 255, 0.16);
+}
+.floatbar--floating.floatbar--vertical .floatbar__handle {
+  background-image:
+    radial-gradient(circle, rgba(255, 255, 255, 0.7) 1px, transparent 1.5px);
+  background-size: calc(4px * var(--floatbar-scale, 1)) calc(3px * var(--floatbar-scale, 1));
+}
+.floatbar--floating .floatbar__pill,
+.floatbar--floating .floatbar__cost-pill {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid var(--brand, rgba(255, 255, 255, 0.22));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+.floatbar--floating .floatbar__pill--warn {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: #f59e0b;
+  color: #fbbf24;
+}
+.floatbar--floating .floatbar__pill--crit {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: #ef4444;
+  color: #fca5a5;
+}
+
+.floatbar__kimi-group,
+.floatbar__provider-account-group,
+.floatbar__kimi-unmatched {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(3px * var(--floatbar-scale, 1));
+  padding: calc(2px * var(--floatbar-scale, 1));
+  border-radius: calc(9px * var(--floatbar-scale, 1));
+}
+
+.floatbar__kimi-group {
+  border: 1.5px solid var(--kimi-monthly-accent);
+  background: transparent;
+}
+
+.floatbar__provider-account-group {
+  border: 1.5px solid var(--kimi-monthly-accent);
+  background: transparent;
+}
+
+.floatbar__kimi-unmatched {
+  border: 1px dashed rgba(148, 163, 184, 0.8);
+  background: transparent;
+}
+
+.floatbar--vertical .floatbar__kimi-group,
+.floatbar--vertical .floatbar__provider-account-group,
+.floatbar--vertical .floatbar__kimi-unmatched {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.floatbar--vertical .floatbar__kimi-group > .floatbar__pill,
+.floatbar--vertical .floatbar__provider-account-group > .floatbar__pill,
+.floatbar--vertical .floatbar__kimi-unmatched > .floatbar__pill {
+  box-sizing: border-box;
+  width: 100%;
+  justify-content: center;
+}
+
+.floatbar .floatbar__monthly-pill {
+  border: 1px solid var(--kimi-monthly-accent);
+  background: color-mix(
+    in srgb,
+    var(--kimi-monthly-accent) 14%,
+    rgba(204, 224, 237, 0.88)
+  );
+  backdrop-filter: blur(18px) saturate(155%);
+  -webkit-backdrop-filter: blur(18px) saturate(155%);
+}
+
+.floatbar--floating .floatbar__monthly-pill {
+  background: color-mix(
+    in srgb,
+    var(--kimi-monthly-accent) 18%,
+    rgba(255, 255, 255, 0.12)
+  );
+}
+
+.floatbar__monthly-pill .floatbar__credential-label {
+  font-weight: 700;
+  opacity: 0.92;
+}
+
+.floatbar__monthly-pill .floatbar__pct {
+  font-weight: 800;
+}
+
+.floatbar__monthly-pill .floatbar__account-source {
+  opacity: 0.78;
+}
+
+.floatbar__monthly-content {
+  display: grid;
+  min-width: calc(78px * var(--floatbar-scale, 1));
+  gap: calc(2px * var(--floatbar-scale, 1));
+}
+
+.floatbar__monthly-badge {
+  display: inline-grid;
+  width: calc(13px * var(--floatbar-scale, 1));
+  height: calc(13px * var(--floatbar-scale, 1));
+  place-items: center;
+  border: 1px solid var(--kimi-monthly-accent);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--kimi-monthly-accent);
+  font-size: 0.78em;
+  font-weight: 800;
+}
+
+.floatbar__provider-account-heading,
+.floatbar__provider-monthly-badge {
+  max-width: calc(112px * var(--floatbar-scale, 1));
+  overflow: hidden;
+  color: var(--kimi-monthly-accent);
+  font-size: 0.72em;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.floatbar__provider-account-heading {
+  padding-inline: calc(4px * var(--floatbar-scale, 1));
+}
+
+.floatbar__provider-monthly-badge {
+  padding: 0 calc(4px * var(--floatbar-scale, 1));
+  border: 1px solid var(--kimi-monthly-accent);
+  border-radius: 999px;
+  background: transparent;
+}
+
+.floatbar__account-source {
+  max-width: calc(74px * var(--floatbar-scale, 1));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.72em;
+  font-weight: 500;
+  opacity: 0.68;
+}
+
+.floatbar__monthly-progress {
+  height: calc(2px * var(--floatbar-scale, 1));
+}
+.floatbar--floating .floatbar__pill--neutral {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: #9ca3af;
+  color: #d1d5db;
+}
+.floatbar--floating .floatbar__empty {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+}
+.floatbar--floating.floatbar--light-bg {
+  color: rgba(20, 22, 26, 0.95);
+}
+.floatbar--floating.floatbar--light-bg .floatbar__pill,
+.floatbar--floating.floatbar--light-bg .floatbar__cost-pill,
+.floatbar--floating.floatbar--light-bg .floatbar__empty {
+  background: rgba(255, 255, 255, 0.55);
+  border-color: var(--brand, rgba(20, 22, 26, 0.25));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+.floatbar--floating.floatbar--light-bg .floatbar__pill--warn {
+  border-color: #b45309;
+  color: #92400e;
+}
+.floatbar--floating.floatbar--light-bg .floatbar__pill--crit {
+  border-color: #b91c1c;
+  color: #991b1b;
+}
+.floatbar--floating.floatbar--light-bg .floatbar__pill--neutral {
+  border-color: #6b7280;
+  color: #4b5563;
+}
+
+.floatbar--floating.floatbar--light-bg .floatbar__monthly-pill {
+  border-color: var(--kimi-monthly-accent);
+  background: color-mix(
+    in srgb,
+    var(--kimi-monthly-accent) 14%,
+    rgba(255, 255, 255, 0.62)
+  );
+}
+.floatbar--floating.floatbar--light-bg .floatbar__handle {
+  background-color: rgba(20, 22, 26, 0.10);
+  background-image:
+    radial-gradient(circle, rgba(20, 22, 26, 0.75) 1px, transparent 1.5px);
+}
+.floatbar--floating.floatbar--light-bg .floatbar__handle:hover {
+  background-color: rgba(20, 22, 26, 0.18);
+}

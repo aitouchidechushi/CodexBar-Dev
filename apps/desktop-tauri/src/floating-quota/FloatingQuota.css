@@ -1,0 +1,232 @@
+body.floating-quota-window,
+html:has(body.floating-quota-window),
+body.floating-quota-window #root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: transparent !important;
+}
+
+.floating-quota {
+  box-sizing: border-box;
+  width: 320px;
+  max-height: 520px;
+  overflow: hidden;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  background: var(--panel-bg);
+  color: var(--text-primary);
+  box-shadow: var(--panel-shadow);
+  font: 12px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.floating-quota__header {
+  box-sizing: border-box;
+  display: flex;
+  height: 42px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px 0 12px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.floating-quota__header h1,
+.floating-quota__provider-heading h2,
+.floating-quota__credential h3,
+.floating-quota__account h3 {
+  margin: 0;
+}
+
+.floating-quota__header h1 {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.floating-quota__controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.floating-quota__control {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: 20px/1 system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.floating-quota__control svg {
+  width: 15px;
+  height: 15px;
+  fill: currentColor;
+}
+
+.floating-quota__control:hover,
+.floating-quota__control.is-active {
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+}
+
+.floating-quota__control.is-active {
+  color: var(--accent);
+}
+
+.floating-quota__control:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.floating-quota__content {
+  box-sizing: border-box;
+  max-height: 478px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 10px;
+}
+
+.floating-quota__provider + .floating-quota__provider {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--panel-border);
+}
+
+.floating-quota__provider-heading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 7px;
+}
+
+.floating-quota__provider-heading h2 {
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.floating-quota__credential {
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--surface-elevated);
+}
+
+.floating-quota__credential + .floating-quota__credential {
+  margin-top: 7px;
+}
+
+.floating-quota__account-group,
+.floating-quota__unmatched-group {
+  display: grid;
+  gap: 7px;
+  padding: 8px;
+  border-radius: 9px;
+}
+
+.floating-quota__account-group {
+  border: 1.5px solid var(--kimi-monthly-accent);
+  background: transparent;
+}
+
+.floating-quota__unmatched-group {
+  border: 1px dashed color-mix(in srgb, var(--text-secondary) 48%, transparent);
+  background: transparent;
+}
+
+.floating-quota__account-group + .floating-quota__account-group,
+.floating-quota__account-group + .floating-quota__unmatched-group {
+  margin-top: 7px;
+}
+
+.floating-quota__account {
+  display: grid;
+  gap: 5px;
+}
+
+.floating-quota__account-source,
+.floating-quota__key-heading {
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
+.floating-quota__key-heading {
+  font-weight: 650;
+}
+
+.floating-quota__monthly-badge {
+  display: inline-flex;
+  width: max-content;
+  padding: 1px 5px;
+  border: 1px solid color-mix(in srgb, var(--kimi-monthly-accent) 50%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--kimi-monthly-accent) !important;
+  font-weight: 700;
+}
+
+.floating-quota__credential h3,
+.floating-quota__account h3 {
+  overflow: hidden;
+  margin-bottom: 6px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.floating-quota__metrics {
+  display: grid;
+  gap: 7px;
+}
+
+.floating-quota__metric-heading {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.floating-quota__metric-heading span {
+  overflow: hidden;
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.floating-quota__metric-heading strong {
+  flex: none;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.floating-quota__reset {
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 10px;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.floating-quota__error {
+  color: var(--provider-status-error);
+  font-weight: 600;
+}
+
+.floating-quota__empty {
+  padding: 16px 8px;
+  color: var(--text-secondary);
+  text-align: center;
+}
