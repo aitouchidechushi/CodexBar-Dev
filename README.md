@@ -1,5 +1,37 @@
 # Win-CodexBar
 
+## 中文导航：下载程序与理解目录
+
+**只想使用程序：** [下载已确认使用的 0.45.2 程序](https://github.com/aitouchidechushi/CodexBar-Dev/releases/tag/user-confirmed-0.45.2-20260825)，在发布页 Assets 中选择 `.exe`，不是 Source code。
+
+**想继续开发：** 本仓库 `main` 保存当前开发源码。先阅读[使用与协作说明](PUBLICATION.md)。历史程序与当前源码不是同一次构建。
+
+GitHub 文件列表中间一列显示的是“最近一次提交说明”，不是固定目录简介；后续提交会更新它。下表和各目录内的中文说明可长期查阅。
+
+| 目录或文件 | 中文用途 |
+| --- | --- |
+| [.github/](.github/README.md) | GitHub 自动化、问题反馈和合并请求模板。 |
+| [apps/desktop-tauri/](apps/desktop-tauri/README.md) | 桌面应用：React 界面，以及 Tauri 窗口、托盘和后台调用控制。 |
+| [docs/](docs/README.md) | 构建、平台、Cookie、发布等技术文档及图片。 |
+| [rust/](rust/README.md) | 核心业务：服务商额度获取、设置、存储、凭据相关处理与命令行功能。 |
+| [scripts/](scripts/README.md) | 开发检查、版本校验、构建、安装测试和发布辅助脚本。 |
+| [.gitattributes](.gitattributes) | Git 文件属性及换行规则。 |
+| [.gitignore](.gitignore) | 排除依赖安装目录、构建产物、个人配置等不应提交的文件。 |
+| [Cargo.toml](Cargo.toml) | Rust 工作区入口，统一组织核心业务和桌面后台两个子项目。 |
+| [Cargo.lock](Cargo.lock) | Rust 依赖版本锁定文件，保障依赖可复现，需要保留。 |
+| [CHANGELOG.md](CHANGELOG.md) | 版本变更记录，不等于当前源码已通过验收。 |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | 参与开发与贡献的指南。 |
+| [DESIGN.md](DESIGN.md) | 项目设计说明。 |
+| [LICENSE](LICENSE) | MIT 许可证及原作者版权声明。 |
+| [PUBLICATION.md](PUBLICATION.md) | 本次公开源码、历史程序及朋友协作开发说明。 |
+| [README.md](README.md)、[README.zh-CN.md](README.zh-CN.md) | 项目首页与中文介绍。 |
+| [version.env](version.env) | 共享版本号和构建号，不是 API Key 配置文件。 |
+| [VERSIONING.md](VERSIONING.md) | 版本管理规则说明。 |
+
+修改入口：**界面 → `apps/desktop-tauri/src/`；窗口和托盘 → `apps/desktop-tauri/src-tauri/src/`；服务商额度 → `rust/src/providers/`；持久化 → `rust/src/settings/` 和 `rust/src/storage/`。**
+
+---
+
 > **CodexBar-Dev publication notice:** main contains the current 0.46.0 / build 87 development snapshot. The separately shared, owner-confirmed 0.45.2 executable is an older Debug build, not a build of this source snapshot. See [usage and collaboration instructions](PUBLICATION.md) before downloading or developing. Existing upstream release guidance below does not certify this snapshot as a stable release.
 
 [English](README.md) | [简体中文](README.zh-CN.md)
