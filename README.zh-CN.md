@@ -4,9 +4,9 @@
 
 查看[仓库完整中文目录表](README.md#中文导航下载程序与理解目录)，或直接打开：[桌面界面与窗口控制](apps/desktop-tauri/README.md)、[核心业务与服务商适配](rust/README.md)、[项目文档](docs/README.md)、[构建发布脚本](scripts/README.md)、[GitHub 协作配置](.github/README.md)。
 
-**下载可运行程序请进入 [Releases](https://github.com/aitouchidechushi/CodexBar-Dev/releases/tag/user-confirmed-0.45.2-20260825)，选择 Assets 中的 `.exe`。** 当前开发源码与该历史程序不是同一次构建。文件列表中间一列是最近一次提交说明，不是固定的目录介绍。
+**下载可运行程序请进入 [0.46.0 Kimi 修复版](https://github.com/aitouchidechushi/CodexBar-Dev/releases/tag/kimi-quota-fix-0.46.0-f58dfa1)，选择 Assets 中的 `CodexBar.exe`。** 新订阅显示 API Key 返回的五小时额度，本次不新增月额度读取，也不虚构周额度。旧 0.45.2 保留在历史 Releases 中。文件列表中间一列是最近一次提交说明，不是固定的目录介绍。
 
-> **本仓库上传说明：** main 保存当前 0.46.0 / build 87 开发进度；单独分享的 0.45.2 是所有者确认正在使用的历史 Debug 程序，并非由当前源码构建。下载使用和朋友继续开发请先看[协作说明](PUBLICATION.md)。下文原有稳定版发布规范不代表本开发快照已完成稳定版验收。
+> **本仓库上传说明：** main 保存当前 0.46.0 / build 87 开发进度及已验收的 Kimi 额度解析修复。0.46.0 EXE 对应源码提交 f58dfa124d72d142491c9ff251cec90e65e009e7，为未签名 Windows x64 Debug 构建；历史 0.45.2 仍保留。下载使用和朋友继续开发请先看[协作说明](PUBLICATION.md)。本次验收限定于所报告的 Kimi 额度显示问题，不代表全部功能和跨电脑兼容性均已验收。
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 

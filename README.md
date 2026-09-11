@@ -2,7 +2,7 @@
 
 ## 中文导航：下载程序与理解目录
 
-**只想使用程序：** [下载已确认使用的 0.45.2 程序](https://github.com/aitouchidechushi/CodexBar-Dev/releases/tag/user-confirmed-0.45.2-20260825)，在发布页 Assets 中选择 `.exe`，不是 Source code。
+**只想使用程序：** [下载已验收的 0.46.0 Kimi 修复版](https://github.com/aitouchidechushi/CodexBar-Dev/releases/tag/kimi-quota-fix-0.46.0-f58dfa1)，在发布页 Assets 中选择 `CodexBar.exe`，不是 Source code。此版本为 Windows x64 Debug 构建；新订阅按 API Key 返回数据显示五小时额度，本次不新增月额度读取，也不虚构周额度。旧的 0.45.2 程序仍保留在历史 Releases 中。
 
 **想继续开发：** 本仓库 `main` 保存当前开发源码。先阅读[使用与协作说明](PUBLICATION.md)。历史程序与当前源码不是同一次构建。
 
@@ -32,7 +32,7 @@ GitHub 文件列表中间一列显示的是“最近一次提交说明”，不�
 
 ---
 
-> **CodexBar-Dev publication notice:** main contains the current 0.46.0 / build 87 development snapshot. The separately shared, owner-confirmed 0.45.2 executable is an older Debug build, not a build of this source snapshot. See [usage and collaboration instructions](PUBLICATION.md) before downloading or developing. Existing upstream release guidance below does not certify this snapshot as a stable release.
+> **CodexBar-Dev publication notice:** main contains the current 0.46.0 / build 87 development snapshot plus the owner-accepted Kimi partial-quota fix. The 0.46.0 executable is an unsigned Windows x64 Debug build from commit f58dfa124d72d142491c9ff251cec90e65e009e7. New subscriptions show the five-hour quota returned by the API key endpoint; this fix does not add monthly-quota retrieval. The historical 0.45.2 executable remains available. See [usage and collaboration instructions](PUBLICATION.md). Existing upstream release guidance below does not certify this snapshot as a stable release.
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
