@@ -770,3 +770,7 @@ ProviderErrorNotInstalled = プロバイダーがインストールされてい�
 ProviderErrorAuthenticationRequired = 認証が必要です。再ログインするか認証情報を確認してください。
 ProviderErrorMiniMaxNotConfigured = MiniMaxが設定されていません。Token Plan Keyを追加するか、MINIMAX_API_KEYとMINIMAX_GROUP_IDを設定してください。
 ProviderErrorMiniMaxPlanUnavailable = MiniMaxのテキストモデルは現在のプランに含まれていません。
+ProviderErrorQuotaFormat = 利用枠の形式が未対応、または有効な利用枠がありません。
+ProviderErrorQuotaTimeout = 利用枠の取得がタイムアウトしました。
+ProviderErrorQuotaRateLimited = 利用枠の取得がレート制限されました。
+ProviderErrorQuotaNetwork = 利用枠の通信に失敗しました。

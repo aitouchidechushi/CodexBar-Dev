@@ -43,9 +43,10 @@ const KIMI_CODE_CREDENTIAL_MIN_TTL_SECS: f64 = 60.0;
 
 #[derive(Debug, Deserialize)]
 struct KimiCodeApiUsageResponse {
-    usage: KimiUsageDetail,
     #[serde(default)]
-    limits: Option<Vec<KimiRateLimit>>,
+    usage: Option<serde_json::Value>,
+    #[serde(default)]
+    limits: Option<Vec<serde_json::Value>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -388,13 +389,46 @@ impl KimiProvider {
     fn snapshot_from_code_api_response(
         response: KimiCodeApiUsageResponse,
     ) -> Result<UsageSnapshot, ProviderError> {
-        let primary = Self::rate_window_from_usage_detail(&response.usage, None)?;
+        // Each quota is independent: a missing or malformed weekly quota must
+        // not discard a valid timed limit. Never substitute totalQuota for it.
+        let weekly = response
+            .usage
+            .and_then(|value| serde_json::from_value::<KimiUsageDetail>(value).ok())
+            .and_then(|detail| Self::rate_window_from_usage_detail(&detail, Some(10080)).ok());
+        let mut timed: Vec<RateWindow> = response
+            .limits
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|value| serde_json::from_value::<KimiRateLimit>(value).ok())
+            .filter_map(|limit| {
+                let minutes = limit
+                    .window
+                    .as_ref()
+                    .and_then(kimi_window_minutes)
+                    .filter(|minutes| *minutes > 0);
+                Self::rate_window_from_usage_detail(&limit.detail, minutes).ok()
+            })
+            .collect();
+        // Prefer the familiar five-hour window without trusting server order.
+        timed.sort_by_key(|window| (window.window_minutes != Some(300), window.window_minutes));
+        let mut windows = weekly
+            .into_iter()
+            .chain(timed)
+            .collect::<Vec<_>>()
+            .into_iter();
+        let primary = windows.next().ok_or_else(|| {
+            ProviderError::Parse("Kimi quota response contains no usable quota windows".into())
+        })?;
         let mut usage = UsageSnapshot::new(primary).with_login_method("Code API");
-
-        if let Some(limit) = response.limits.unwrap_or_default().into_iter().next() {
-            let window_minutes = limit.window.as_ref().and_then(kimi_window_minutes);
-            let rate_limit = Self::rate_window_from_usage_detail(&limit.detail, window_minutes)?;
-            usage = usage.with_secondary(rate_limit);
+        if let Some(secondary) = windows.next() {
+            usage = usage.with_secondary(secondary);
+        }
+        for (index, window) in windows.enumerate() {
+            usage = usage.with_extra_rate_window(
+                format!("kimi-code-limit-{index}"),
+                "Kimi quota",
+                window,
+            );
         }
 
         Ok(usage)
@@ -941,6 +975,83 @@ mod tests {
         let secondary = snapshot.secondary.unwrap();
         assert_eq!(secondary.window_minutes, Some(300));
         assert!((secondary.used_percent - 20.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn code_api_partial_quota_keeps_short_window_without_weekly() {
+        for usage in [None, Some(serde_json::Value::Null)] {
+            let mut payload = json!({"limits": [{
+                "window": {"duration": 300, "timeUnit": "TIME_UNIT_MINUTE"},
+                "detail": {"limit": "100", "used": "45", "remaining": "55"}
+            }], "totalQuota": {}});
+            if let Some(value) = usage {
+                payload["usage"] = value;
+            }
+            let response = serde_json::from_value(payload).unwrap();
+            let snapshot = KimiProvider::snapshot_from_code_api_response(response).unwrap();
+            assert_eq!(snapshot.primary.window_minutes, Some(300));
+            assert_eq!(snapshot.primary.used_percent, 45.0);
+            assert!(snapshot.secondary.is_none());
+            assert!(snapshot.extra_rate_windows.is_empty());
+        }
+    }
+
+    #[test]
+    fn code_api_partial_quota_skips_bad_windows_and_keeps_valid_ones() {
+        let response = serde_json::from_value(json!({
+            "usage": {"limit": "0", "remaining": "0"},
+            "limits": [null, {"detail": {"limit": "100", "remaining": "80"}}, {
+                "window": {"duration": 300, "timeUnit": "TIME_UNIT_MINUTE"},
+                "detail": {"limit": "100", "remaining": "80"}
+            }]
+        }))
+        .unwrap();
+        let snapshot = KimiProvider::snapshot_from_code_api_response(response).unwrap();
+        assert_eq!(snapshot.primary.window_minutes, Some(300));
+        assert_eq!(snapshot.primary.used_percent, 20.0);
+        let unknown = snapshot.secondary.unwrap();
+        assert_eq!(unknown.window_minutes, None);
+        assert_eq!(unknown.used_percent, 20.0);
+    }
+
+    #[test]
+    fn code_api_partial_quota_retains_unknown_cycle_without_guessing_weekly() {
+        let response = serde_json::from_value(json!({"limits": [
+            {"detail": {"limit": "100", "remaining": "55"}}
+        ]}))
+        .unwrap();
+        let snapshot = KimiProvider::snapshot_from_code_api_response(response).unwrap();
+        assert_eq!(snapshot.primary.used_percent, 45.0);
+        assert_eq!(snapshot.primary.window_minutes, None);
+        assert!(snapshot.secondary.is_none());
+    }
+
+    #[test]
+    fn code_api_partial_quota_preserves_weekly_and_selects_short_by_duration() {
+        let response = serde_json::from_value(json!({
+            "usage": {"limit": "100", "remaining": "70"},
+            "limits": [{"window": {"duration": 30, "timeUnit": "TIME_UNIT_DAY"},
+                "detail": {"limit": "100", "remaining": "90"}},
+                {"window": {"duration": 300, "timeUnit": "TIME_UNIT_MINUTE"},
+                "detail": {"limit": "100", "remaining": "55"}}]
+        }))
+        .unwrap();
+        let snapshot = KimiProvider::snapshot_from_code_api_response(response).unwrap();
+        assert_eq!(snapshot.primary.window_minutes, Some(10080));
+        assert_eq!(snapshot.primary.used_percent, 30.0);
+        assert_eq!(snapshot.secondary.unwrap().window_minutes, Some(300));
+        assert_eq!(snapshot.extra_rate_windows.len(), 1);
+        assert_eq!(
+            snapshot.extra_rate_windows[0].window.window_minutes,
+            Some(43200)
+        );
+    }
+
+    #[test]
+    fn code_api_partial_quota_rejects_no_usable_data_without_fabricating_zero() {
+        let response =
+            serde_json::from_value(json!({"limits": [], "totalQuota": {"limit": "100"}})).unwrap();
+        assert!(KimiProvider::snapshot_from_code_api_response(response).is_err());
     }
 
     #[test]

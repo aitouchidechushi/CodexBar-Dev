@@ -691,3 +691,7 @@ ProviderErrorNotInstalled = El proveedor no está instalado.
 ProviderErrorAuthenticationRequired = Se requiere autenticación. Inicia sesión de nuevo o revisa la credencial.
 ProviderErrorMiniMaxNotConfigured = MiniMax no está configurado. Agrega una Token Plan Key o configura MINIMAX_API_KEY y MINIMAX_GROUP_ID.
 ProviderErrorMiniMaxPlanUnavailable = Los modelos de texto de MiniMax no están incluidos en el plan actual.
+ProviderErrorQuotaFormat = Formato de cuota incompatible o sin cuota válida.
+ProviderErrorQuotaTimeout = La solicitud de cuota agotó el tiempo de espera.
+ProviderErrorQuotaRateLimited = La solicitud de cuota fue limitada. Intenta más tarde.
+ProviderErrorQuotaNetwork = Falló la conexión al consultar la cuota.

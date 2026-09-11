@@ -182,8 +182,19 @@ export function selectProviderQuotaWindows(
     if (!candidate.snapshot || !Number.isFinite(candidate.snapshot.usedPercent)) return [];
     const kind = candidate.source === "primary" || candidate.source === "secondary"
       ? classifyProviderSlotRateWindow(candidate.label, candidate.snapshot)
-      : classifyRateWindow(candidate.label, candidate.snapshot);
-    return kind ? [{ ...candidate, snapshot: candidate.snapshot, kind }] : [];
+      : classifyRateWindow(candidate.label, candidate.snapshot)
+        ?? (provider.providerId === "kimi"
+          && candidate.source === "extra"
+          && candidate.id.startsWith("extra-kimi-code-limit-")
+          && !candidate.snapshot.isInformational ? "ordinary" : undefined);
+    // Kimi may omit its weekly slot. A promoted timed quota must not inherit
+    // the provider's static "Weekly" label merely because it is now primary.
+    const label = provider.providerId === "kimi"
+      ? candidate.snapshot.windowMinutes === 300 ? "Rate Limit"
+        : candidate.snapshot.windowMinutes === WEEKLY_WINDOW_MINUTES ? "Weekly"
+        : candidate.label
+      : candidate.label;
+    return kind ? [{ ...candidate, label, snapshot: candidate.snapshot, kind }] : [];
   });
   const selected: ProviderQuotaWindow[] = [];
   const short = classified.find((window) => window.kind === "short");

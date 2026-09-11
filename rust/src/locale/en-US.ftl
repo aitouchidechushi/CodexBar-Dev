@@ -770,3 +770,7 @@ ProviderErrorNotInstalled = Provider is not installed.
 ProviderErrorAuthenticationRequired = Authentication is required. Sign in again or check the credential.
 ProviderErrorMiniMaxNotConfigured = MiniMax is not configured. Add a Token Plan Key from the provider card, or configure MINIMAX_API_KEY and MINIMAX_GROUP_ID.
 ProviderErrorMiniMaxPlanUnavailable = MiniMax text models are not included in the current Token Plan.
+ProviderErrorQuotaFormat = Quota response format is incompatible or contains no usable quota.
+ProviderErrorQuotaTimeout = Quota request timed out. Refresh later.
+ProviderErrorQuotaRateLimited = Quota request was rate limited. Refresh later.
+ProviderErrorQuotaNetwork = Quota network request failed. Check your connection.

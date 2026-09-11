@@ -34,6 +34,53 @@ fn validate_surface_target_accepts_matching_target() {
 }
 
 #[test]
+fn kimi_partial_quota_bridge_labels_follow_actual_duration() {
+    let metadata = instantiate_provider(ProviderId::Kimi).metadata().clone();
+    let result = ProviderFetchResult::new(
+        codexbar::core::UsageSnapshot::new(codexbar::core::RateWindow::with_details(
+            45.0,
+            Some(300),
+            None,
+            None,
+        )),
+        "code-api",
+    );
+    let snapshot = ProviderUsageSnapshot::from_fetch_result(ProviderId::Kimi, &metadata, &result);
+    assert_eq!(snapshot.primary_label.as_deref(), Some("Rate Limit"));
+    assert_eq!(snapshot.primary.window_minutes, Some(300));
+    assert!(snapshot.secondary.is_none());
+    assert!(snapshot.secondary_label.is_none());
+    let result = ProviderFetchResult::new(
+        codexbar::core::UsageSnapshot::new(codexbar::core::RateWindow::with_details(
+            20.0,
+            Some(1440),
+            None,
+            None,
+        )),
+        "code-api",
+    );
+    let snapshot = ProviderUsageSnapshot::from_fetch_result(ProviderId::Kimi, &metadata, &result);
+    assert_eq!(snapshot.primary_label.as_deref(), Some("Quota"));
+    let cli = ProviderFetchResult::new(
+        codexbar::core::UsageSnapshot::new(codexbar::core::RateWindow::with_details(
+            20.0,
+            Some(1440),
+            None,
+            None,
+        )),
+        "code-cli",
+    );
+    let snapshot = ProviderUsageSnapshot::from_fetch_result(ProviderId::Kimi, &metadata, &cli);
+    assert_eq!(snapshot.primary_label.as_deref(), Some("Quota"));
+    let web = ProviderFetchResult::new(
+        codexbar::core::UsageSnapshot::new(codexbar::core::RateWindow::new(20.0)),
+        "web",
+    );
+    let snapshot = ProviderUsageSnapshot::from_fetch_result(ProviderId::Kimi, &metadata, &web);
+    assert_eq!(snapshot.primary_label.as_deref(), Some("Weekly"));
+}
+
+#[test]
 fn validate_surface_target_rejects_mismatched_target() {
     let error = validate_surface_target(
         SurfaceMode::TrayPanel,

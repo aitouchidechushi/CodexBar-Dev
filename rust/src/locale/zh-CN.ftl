@@ -770,3 +770,7 @@ ProviderErrorNotInstalled = 服务商未安装。
 ProviderErrorAuthenticationRequired = 需要身份验证，请重新登录或检查凭据。
 ProviderErrorMiniMaxNotConfigured = MiniMax 尚未配置。请在服务商卡片中添加 Token Plan Key，或配置 MINIMAX_API_KEY 和 MINIMAX_GROUP_ID。
 ProviderErrorMiniMaxPlanUnavailable = MiniMax 文本模型不在当前套餐中。
+ProviderErrorQuotaFormat = 额度数据格式不兼容或未提供有效额度。
+ProviderErrorQuotaTimeout = 额度请求超时，请稍后刷新。
+ProviderErrorQuotaRateLimited = 额度请求受到限流，请稍后刷新。
+ProviderErrorQuotaNetwork = 额度网络请求失败，请检查网络。

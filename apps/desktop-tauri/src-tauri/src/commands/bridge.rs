@@ -249,7 +249,15 @@ impl ProviderUsageSnapshot {
             display_name: id.display_name().to_string(),
             primary: primary_snap,
             primary_label: Some(
-                if is_minimax_token_plan {
+                if id == ProviderId::Kimi
+                    && matches!(result.source_label.as_str(), "code-api" | "code-cli")
+                {
+                    match usage.primary.window_minutes {
+                        Some(300) => "Rate Limit",
+                        Some(10080) => "Weekly",
+                        _ => "Quota",
+                    }
+                } else if is_minimax_token_plan {
                     "Rate Limit"
                 } else {
                     metadata.session_label
@@ -257,8 +265,16 @@ impl ProviderUsageSnapshot {
                 .to_string(),
             ),
             secondary: secondary_snap,
-            secondary_label: usage.secondary.as_ref().map(|_| {
-                if is_minimax_token_plan {
+            secondary_label: usage.secondary.as_ref().map(|window| {
+                if id == ProviderId::Kimi
+                    && matches!(result.source_label.as_str(), "code-api" | "code-cli")
+                {
+                    match window.window_minutes {
+                        Some(300) => "Rate Limit",
+                        Some(10080) => "Weekly",
+                        _ => "Quota",
+                    }
+                } else if is_minimax_token_plan {
                     "Weekly"
                 } else {
                     metadata.weekly_label

@@ -691,3 +691,7 @@ ProviderErrorNotInstalled = 제공자가 설치되어 있지 않습니다.
 ProviderErrorAuthenticationRequired = 인증이 필요합니다. 다시 로그인하거나 자격 증명을 확인하세요.
 ProviderErrorMiniMaxNotConfigured = MiniMax가 구성되지 않았습니다. Token Plan Key를 추가하거나 MINIMAX_API_KEY와 MINIMAX_GROUP_ID를 설정하세요.
 ProviderErrorMiniMaxPlanUnavailable = MiniMax 텍스트 모델은 현재 요금제에 포함되어 있지 않습니다.
+ProviderErrorQuotaFormat = 할당량 형식이 호환되지 않거나 유효한 할당량이 없습니다.
+ProviderErrorQuotaTimeout = 할당량 요청 시간이 초과되었습니다.
+ProviderErrorQuotaRateLimited = 할당량 요청이 속도 제한되었습니다.
+ProviderErrorQuotaNetwork = 할당량 네트워크 요청에 실패했습니다.

@@ -35,6 +35,17 @@ it("classifies five-hour, seven-day, and monthly quota windows", () => {
   expect(classifyRateWindow("月额度", rate(null))).toBe("monthly");
 });
 
+it("retains unusual Kimi timed quotas without relabeling them weekly", () => {
+  const provider = {
+    providerId: "kimi", primary: rate(1440), primaryLabel: "Quota",
+    secondary: null, modelSpecific: null, tertiary: null, cost: null,
+    extraRateWindows: [{ id: "kimi-code-limit-0", title: "Kimi quota", window: rate(360) }],
+  } as ProviderUsageSnapshot;
+  const windows = selectProviderQuotaWindows(provider);
+  expect(windows.map((window) => window.kind)).toEqual(["ordinary", "ordinary"]);
+  expect(windows.map((window) => window.snapshot.windowMinutes)).toEqual([1440, 360]);
+});
+
 it("does not classify monthly spend or statistics as monthly quota", () => {
   expect(classifyRateWindow("Monthly spend", rate(null))).toBeUndefined();
   expect(classifyRateWindow("Tokens (month)", rate(null))).toBeUndefined();

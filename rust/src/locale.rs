@@ -992,6 +992,10 @@ locale_keys! {
     ApiKeyDuplicate,
     ProviderErrorNotInstalled,
     ProviderErrorAuthenticationRequired,
+    ProviderErrorQuotaFormat,
+    ProviderErrorQuotaTimeout,
+    ProviderErrorQuotaRateLimited,
+    ProviderErrorQuotaNetwork,
     ProviderErrorMiniMaxNotConfigured,
     ProviderErrorMiniMaxPlanUnavailable,
 

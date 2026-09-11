@@ -743,6 +743,10 @@ export const ALL_LOCALE_KEYS = [
   "ApiKeyDuplicate",
   "ProviderErrorNotInstalled",
   "ProviderErrorAuthenticationRequired",
+  "ProviderErrorQuotaFormat",
+  "ProviderErrorQuotaTimeout",
+  "ProviderErrorQuotaRateLimited",
+  "ProviderErrorQuotaNetwork",
   "ProviderErrorMiniMaxNotConfigured",
   "ProviderErrorMiniMaxPlanUnavailable",
 

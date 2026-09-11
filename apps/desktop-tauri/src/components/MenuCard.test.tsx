@@ -161,6 +161,32 @@ function renderGroup(
 }
 
 describe("MenuCard", () => {
+  it("shows a safe Kimi parsing category instead of hiding the cause or exposing raw errors", async () => {
+    tauriMocks.getLocaleStrings.mockResolvedValue(buildBundle({
+      ProviderErrorQuotaFormat: "额度数据格式不兼容或未提供有效额度",
+    }));
+    const snapshot = { ...credential("key-failed", "Failed Kimi", 9, 0,
+      "Parse error: Kimi quota response contains no usable quota windows secret-private"),
+      providerId: "kimi", displayName: "Kimi" };
+    renderGroup(providerGroup([snapshot]));
+    expect(await screen.findByText("额度数据格式不兼容或未提供有效额度")).toBeInTheDocument();
+    expect(document.body.textContent).not.toContain("secret-private");
+  });
+
+  it("shows only the real five-hour quota for a Kimi key without weekly usage", async () => {
+    tauriMocks.getLocaleStrings.mockResolvedValue(buildBundle({
+      ProviderRateLimitLabel: "五小时额度", ProviderWeeklyLabel: "本周",
+    }));
+    const snapshot = { ...credential("key-short", "Partial Kimi", 9, 45),
+      providerId: "kimi", displayName: "Kimi", primaryLabel: "Weekly",
+      primary: rateWindow(45, { windowMinutes: 300 }), secondary: null };
+    renderGroup(providerGroup([snapshot]));
+    const card = await screen.findByRole("region", { name: "Partial Kimi" });
+    expect(within(card).getByText("五小时额度")).toBeInTheDocument();
+    expect(card.textContent).not.toContain("本周");
+    expect(card.textContent).toContain("45%");
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     tauriMocks.getLocaleStrings.mockResolvedValue(

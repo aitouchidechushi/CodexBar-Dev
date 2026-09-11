@@ -131,6 +131,12 @@ function displayWindowLabel(
       monthlyFallbackScope,
     );
   }
+  if (snap.windowMinutes === 300 && raw?.toLowerCase() === "weekly") {
+    return t("ProviderRateLimitLabel");
+  }
+  if (snap.windowMinutes === 10080 && raw?.toLowerCase() === "rate limit") {
+    return t("ProviderWeeklyLabel");
+  }
   return localizeWindowLabel(raw, t) || fallback;
 }
 
@@ -152,6 +158,16 @@ function localizeProviderError(
     return t("ProviderErrorAuthenticationRequired");
   }
   return raw;
+}
+
+/** Never expose arbitrary server text on a credential card. */
+function credentialErrorCategory(raw: string, t: (key: LocaleKey) => string): string {
+  if (/authentication required|\b401\b|\b403\b/i.test(raw)) return t("ProviderErrorAuthenticationRequired");
+  if (/\b429\b|rate.?limit/i.test(raw)) return t("ProviderErrorQuotaRateLimited");
+  if (/timeout|timed out/i.test(raw)) return t("ProviderErrorQuotaTimeout");
+  if (/parse|no usable quota|missing field/i.test(raw)) return t("ProviderErrorQuotaFormat");
+  if (/network|connect|error sending request/i.test(raw)) return t("ProviderErrorQuotaNetwork");
+  return t("ProviderStatusError");
 }
 
 /** Format a reserve description from raw pace data at render time. */
@@ -579,7 +595,7 @@ function CredentialQuotaCard({
       </div>
       {provider.error ? (
         <div className="menu-card__credential-error">
-          {t("ProviderStatusError")}
+          {credentialErrorCategory(provider.error, t)}
         </div>
       ) : (
         <ProviderQuotaBlock
