@@ -3251,22 +3251,36 @@ fn snapshots_after_browser_refresh(
     let mut snapshots = store
         .accounts
         .iter()
-        .map(|record| {
-            if summary.refreshed_account_ids.contains(&record.account_id) {
-                snapshot_from_stored_quota_with_status(record, "ok")
-                    .unwrap_or_else(|| empty_snapshot(record, "refreshFailed"))
-            } else if summary
-                .authentication_account_ids
-                .contains(&record.account_id)
-            {
-                empty_snapshot(record, "loginRequired")
-            } else {
-                snapshot_for_record(record)
-            }
-        })
+        .map(|record| snapshot_after_browser_refresh(record, summary))
         .collect::<Vec<_>>();
     apply_cached_credential_matches(store, &mut snapshots);
     snapshots
+}
+
+fn snapshot_after_browser_refresh(
+    record: &KimiAccountRecord,
+    summary: &browser::KimiBrowserScanSummary,
+) -> KimiAccountSnapshot {
+    if summary.refreshed_account_ids.contains(&record.account_id) {
+        snapshot_from_stored_quota_with_status(record, "ok")
+            .unwrap_or_else(|| empty_snapshot(record, "refreshFailed"))
+    } else if summary
+        .authentication_account_ids
+        .contains(&record.account_id)
+    {
+        empty_snapshot(record, "loginRequired")
+    } else if summary
+        .temporary_failure_account_ids
+        .contains(&record.account_id)
+    {
+        snapshot_after_refresh_error(
+            record,
+            Some(snapshot_for_record(record)),
+            &KimiAccountRefreshError::Temporary,
+        )
+    } else {
+        snapshot_for_record(record)
+    }
 }
 
 fn snapshot_without_webview_refresh(

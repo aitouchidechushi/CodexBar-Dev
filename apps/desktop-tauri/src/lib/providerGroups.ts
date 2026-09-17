@@ -75,13 +75,23 @@ function sharedMonthlyQuotas(
 ): ProviderQuotaWindow[] {
   const auditedWindowIds = AUDITED_ACCOUNT_SHARED_MONTHLY_WINDOWS[providerId] ?? [];
   return auditedWindowIds.flatMap((windowId) => {
+    let selected: ProviderQuotaWindow | undefined;
+    let selectedAt = Number.NEGATIVE_INFINITY;
     for (const provider of providers) {
+      // Failed-refresh caches remain on their children with the stale warning.
+      if (provider.error != null || provider.refreshError != null) continue;
       const quota = selectProviderQuotaWindows(provider).find(
         (candidate) => candidate.kind === "monthly" && candidate.id === windowId,
       );
-      if (quota) return [quota];
+      if (!quota) continue;
+      const parsedAt = Date.parse(provider.updatedAt);
+      const updatedAt = Number.isFinite(parsedAt) ? parsedAt : Number.NEGATIVE_INFINITY;
+      if (!selected || updatedAt > selectedAt) {
+        selected = quota;
+        selectedAt = updatedAt;
+      }
     }
-    return [];
+    return selected ? [selected] : [];
   });
 }
 

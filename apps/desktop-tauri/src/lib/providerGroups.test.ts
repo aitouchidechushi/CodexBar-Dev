@@ -89,6 +89,81 @@ describe("providerSnapshotIdentity", () => {
   });
 });
 
+describe.each(["factory", "clinepass"])("%s shared quota freshness", (providerId) => {
+  function member(id: string, used: number, updatedAt: string, refreshError?: string) {
+    return {
+      ...snapshot(providerId, {
+        credentialId: id,
+        accountGroupId: "same-account",
+        tertiary: monthlyRate(used, "2026-10-01T00:00:00Z"),
+      }),
+      updatedAt,
+      refreshError,
+    };
+  }
+
+  it.each([
+    ["invalid-date", "2026-09-02T00:00:00Z", 40],
+    ["2026-09-02T00:00:00Z", "invalid-date", 10],
+    ["invalid-date", "invalid-date", 10],
+    ["2026-09-02T00:00:00Z", "2026-09-02T00:00:00Z", 10],
+  ] as const)("handles timestamps %s and %s with stable selection", (firstAt, secondAt, expected) => {
+    const members = [member("a", 10, firstAt), member("b", 40, secondAt)];
+    const [group] = groupProviderSnapshots(members, [], [providerId]);
+    const [section] = providerGroupSections(group);
+    if (section.type !== "provider-account") throw new Error("expected account");
+    expect(section.sharedMonthlyQuotas.map((q) => q.snapshot.usedPercent)).toEqual([expected]);
+  });
+
+  it("skips newer snapshots without the shared window", () => {
+    const members = [
+      { ...member("a", 90, "2026-09-03T00:00:00Z"), tertiary: null },
+      member("b", 40, "2026-09-02T00:00:00Z"),
+    ];
+    const [group] = groupProviderSnapshots(members, [], [providerId]);
+    const [section] = providerGroupSections(group);
+    if (section.type !== "provider-account") throw new Error("expected account");
+    expect(section.sharedMonthlyQuotas.map((q) => q.snapshot.usedPercent)).toEqual([40]);
+  });
+
+  it("uses the newest successful quota regardless of key order", () => {
+    const older = member("a", 10, "2026-09-01T00:00:00Z");
+    const newer = member("b", 40, "2026-09-02T00:00:00Z");
+    for (const members of [[older, newer], [newer, older]]) {
+      const [group] = groupProviderSnapshots(members, [], [providerId]);
+      const [section] = providerGroupSections(group, members);
+      if (section.type !== "provider-account") throw new Error("expected account");
+      expect(section.sharedMonthlyQuotas.map((q) => q.snapshot.usedPercent)).toEqual([40]);
+      expect(section.providers).toEqual(members);
+    }
+  });
+
+  it("does not promote failed-refresh cache over a successful sibling", () => {
+    const members = [
+      member("a", 90, "2026-09-03T00:00:00Z", "Timeout"),
+      member("b", 40, "2026-09-02T00:00:00Z"),
+    ];
+    const [group] = groupProviderSnapshots(members, [], [providerId]);
+    const [section] = providerGroupSections(group);
+    if (section.type !== "provider-account") throw new Error("expected account");
+    expect(section.sharedMonthlyQuotas.map((q) => q.snapshot.usedPercent)).toEqual([40]);
+  });
+
+  it("keeps all-failed cached quotas on their children instead of promoting them", () => {
+    const members = [
+      member("a", 10, "2026-09-01T00:00:00Z", "Timeout"),
+      member("b", 40, "2026-09-02T00:00:00Z", "Timeout"),
+    ];
+    const [group] = groupProviderSnapshots(members, [], [providerId]);
+    const [section] = providerGroupSections(group);
+    if (section.type !== "provider-account") throw new Error("expected account");
+    expect(section.sharedMonthlyQuotas).toEqual([]);
+    expect(section.suppressedChildQuotaIds).toEqual([]);
+    expect(members.flatMap((p) => selectProviderQuotaWindowsForSection(section, p)
+      .filter((q) => q.id === "tertiary").map((q) => q.snapshot.usedPercent))).toEqual([10, 40]);
+  });
+});
+
 describe("groupProviderSnapshots", () => {
   it("returns one provider group in provider order with credentials ordered by ordinal", () => {
     const groups = groupProviderSnapshots(

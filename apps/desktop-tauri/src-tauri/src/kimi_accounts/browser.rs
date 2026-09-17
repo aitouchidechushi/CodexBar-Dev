@@ -43,6 +43,8 @@ pub struct KimiBrowserScanSummary {
     pub(super) refreshed_account_ids: HashSet<Uuid>,
     #[serde(skip)]
     pub(super) authentication_account_ids: HashSet<Uuid>,
+    #[serde(skip)]
+    pub(super) temporary_failure_account_ids: HashSet<Uuid>,
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -776,8 +778,10 @@ fn apply_profile_outcome(
                         .iter()
                         .any(|source| source.source_id == outcome.source.source_id)
                     {
-                        account.last_quota = None;
                         if !summary.refreshed_account_ids.contains(&account.account_id) {
+                            // Authentication belongs to this source; it must not
+                            // erase another source's successful result this scan.
+                            account.last_quota = None;
                             summary
                                 .authentication_account_ids
                                 .insert(account.account_id);
@@ -789,6 +793,17 @@ fn apply_profile_outcome(
         }
         BrowserProfileRefreshStatus::Temporary => {
             if outcome.was_existing {
+                for account in &store.accounts {
+                    if account
+                        .browser_sources
+                        .iter()
+                        .any(|source| source.source_id == outcome.source.source_id)
+                    {
+                        summary
+                            .temporary_failure_account_ids
+                            .insert(account.account_id);
+                    }
+                }
                 summary.failed += 1;
             }
         }
@@ -1819,6 +1834,206 @@ mod tests {
                     .as_ref()
                     .is_some_and(|quota| (quota.used_percent - 26.75).abs() < f64::EPSILON)
         }));
+    }
+
+    #[test]
+    fn same_account_success_survives_other_source_failure_in_either_order() {
+        for success_first in [true, false] {
+            for failure_kind in ["unauthorized", "authentication", "temporary"] {
+                let mut store = KimiAccountStore::default();
+                let good = browser_source(Uuid::new_v4(), KimiBrowserKind::Chrome, "Default");
+                let bad = browser_source(Uuid::new_v4(), KimiBrowserKind::Edge, "Profile 1");
+                let account_id = store
+                    .upsert_browser_source(
+                        identity("same-user", "same-global"),
+                        "same-user".into(),
+                        good.clone(),
+                    )
+                    .account_id;
+                store.upsert_browser_source(
+                    identity("same-user", "same-global"),
+                    "same-user".into(),
+                    bad.clone(),
+                );
+                let success = BrowserProfileRefreshOutcome {
+                    source: good,
+                    was_existing: true,
+                    profile_fingerprint: "good-profile".into(),
+                    status: BrowserProfileRefreshStatus::Success {
+                        identity: KimiAccountIdentity {
+                            identity: identity("same-user", "same-global"),
+                            display_name: Some("same-user".into()),
+                        },
+                        quota: KimiMonthlyQuota {
+                            used_percent: 26.75,
+                            resets_at: None,
+                        },
+                    },
+                };
+                let failure = BrowserProfileRefreshOutcome {
+                    source: bad,
+                    was_existing: true,
+                    profile_fingerprint: "bad-profile".into(),
+                    status: match failure_kind {
+                        "unauthorized" => BrowserProfileRefreshStatus::NotAuthorized,
+                        "authentication" => BrowserProfileRefreshStatus::Authentication,
+                        _ => BrowserProfileRefreshStatus::Temporary,
+                    },
+                };
+                let outcomes = if success_first {
+                    [success, failure]
+                } else {
+                    [failure, success]
+                };
+                let mut summary = KimiBrowserScanSummary::default();
+                for outcome in outcomes {
+                    apply_profile_outcome(&mut store, outcome, false, &mut summary);
+                }
+                assert_eq!(store.accounts.len(), 1);
+                assert_eq!(
+                    store.accounts[0]
+                        .last_quota
+                        .as_ref()
+                        .map(|q| q.used_percent),
+                    Some(26.75),
+                    "success_first={success_first}, failure_kind={failure_kind}"
+                );
+                assert!(summary.refreshed_account_ids.contains(&account_id));
+                assert!(!summary.authentication_account_ids.contains(&account_id));
+                assert_eq!(summary.refreshed, 1);
+                assert_eq!(summary.failed, 1);
+                let snapshots = store
+                    .accounts
+                    .iter()
+                    .map(|record| {
+                        crate::kimi_accounts::snapshot_after_browser_refresh(record, &summary)
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(snapshots[0].status, "ok");
+                assert_eq!(snapshots[0].used_percent, Some(26.75));
+            }
+        }
+    }
+
+    #[test]
+    fn temporary_browser_failure_marks_only_the_affected_snapshot() {
+        use crate::kimi_accounts::{
+            cache, snapshot_after_browser_refresh, snapshot_from_stored_quota_with_status,
+        };
+
+        for has_quota in [true, false] {
+            let mut store = KimiAccountStore::default();
+            let source = browser_source(Uuid::new_v4(), KimiBrowserKind::Chrome, "Default");
+            let affected = store
+                .upsert_browser_source(
+                    identity("failed-user", "failed-global"),
+                    "failed-user".into(),
+                    source.clone(),
+                )
+                .account_id;
+            store.upsert_browser_source(
+                identity("unscanned-user", "unscanned-global"),
+                "unscanned-user".into(),
+                browser_source(Uuid::new_v4(), KimiBrowserKind::Edge, "Default"),
+            );
+            for record in &mut store.accounts {
+                if record.account_id != affected || has_quota {
+                    record.last_quota = Some(KimiStoredQuota {
+                        used_percent: 35.0,
+                        resets_at: Some("2026-10-01T00:00:00Z".into()),
+                        updated_at: "2026-09-01T00:00:00Z".into(),
+                    });
+                }
+            }
+            let cached = store
+                .accounts
+                .iter()
+                .filter_map(|record| snapshot_from_stored_quota_with_status(record, "ok"))
+                .collect::<Vec<_>>();
+            cache().lock().unwrap().snapshots.extend(cached);
+            let mut summary = KimiBrowserScanSummary::default();
+            apply_profile_outcome(
+                &mut store,
+                BrowserProfileRefreshOutcome {
+                    source,
+                    was_existing: true,
+                    profile_fingerprint: "failed-profile".into(),
+                    status: BrowserProfileRefreshStatus::Temporary,
+                },
+                false,
+                &mut summary,
+            );
+            let snapshots = store
+                .accounts
+                .iter()
+                .map(|record| snapshot_after_browser_refresh(record, &summary))
+                .collect::<Vec<_>>();
+            // Remove only this test's randomly identified accounts before asserting.
+            cache().lock().unwrap().snapshots.retain(|snapshot| {
+                !store
+                    .accounts
+                    .iter()
+                    .any(|record| record.account_id == snapshot.account_id)
+            });
+            let failed = snapshots
+                .iter()
+                .find(|snapshot| snapshot.account_id == affected)
+                .unwrap();
+            assert_eq!(
+                failed.status,
+                if has_quota { "stale" } else { "refreshFailed" }
+            );
+            assert_eq!(
+                failed.used_percent,
+                if has_quota { Some(35.0) } else { None }
+            );
+            if has_quota {
+                assert_eq!(failed.updated_at.as_deref(), Some("2026-09-01T00:00:00Z"));
+                assert_eq!(failed.resets_at.as_deref(), Some("2026-10-01T00:00:00Z"));
+            }
+            assert_eq!(
+                snapshots
+                    .iter()
+                    .find(|snapshot| snapshot.account_id != affected)
+                    .unwrap()
+                    .status,
+                "ok"
+            );
+            assert_eq!(summary.failed, 1);
+        }
+    }
+
+    #[test]
+    fn auth_failure_without_current_success_invalidates_old_quota() {
+        let mut store = KimiAccountStore::default();
+        let source = browser_source(Uuid::new_v4(), KimiBrowserKind::Chrome, "Default");
+        let account_id = store
+            .upsert_browser_source(
+                identity("old-user", "old-global"),
+                "old-user".into(),
+                source.clone(),
+            )
+            .account_id;
+        store.accounts[0].last_quota = Some(KimiStoredQuota {
+            used_percent: 10.0,
+            resets_at: None,
+            updated_at: "2026-09-01T00:00:00Z".into(),
+        });
+        let mut summary = KimiBrowserScanSummary::default();
+        apply_profile_outcome(
+            &mut store,
+            BrowserProfileRefreshOutcome {
+                source,
+                was_existing: true,
+                profile_fingerprint: "old-profile".into(),
+                status: BrowserProfileRefreshStatus::Authentication,
+            },
+            false,
+            &mut summary,
+        );
+        assert!(store.accounts[0].last_quota.is_none());
+        assert!(summary.authentication_account_ids.contains(&account_id));
+        assert!(summary.refreshed_account_ids.is_empty());
     }
 
     #[test]
