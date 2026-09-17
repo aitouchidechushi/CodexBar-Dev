@@ -24,6 +24,9 @@
   #define WebView2BootstrapperPath "..\\target\\installer-deps\\MicrosoftEdgeWebview2Setup.exe"
 #endif
 
+; Compute from packaged bytes, never accept a caller-provided build label.
+#define PayloadFingerprint GetSHA256OfString(GetSHA256OfFile(TargetBinDir + "\codexbar.exe") + "|" + GetSHA256OfFile(TargetBinDir + "\codexbar-cli.exe") + "|" + GetSHA256OfFile(TargetBinDir + "\codexbar-desktop.exe"))
+
 [Setup]
 AppId={{6F73B2E3-8E5B-4A2D-9E7B-0C46A0B2F001}
 AppName={#MyAppName}
@@ -73,20 +76,72 @@ Root: HKCU; Subkey: "Software\CodexBar\InstallV2"; ValueType: string; ValueName:
 Root: HKCU; Subkey: "Software\CodexBar\InstallV2"; ValueType: string; ValueName: "InstalledVersion"; ValueData: "{#AppVersion}"; Flags: uninsdeletevalue
 Root: HKCU; Subkey: "Software\CodexBar\InstallV2"; ValueType: string; ValueName: "ExpectedCommit"; ValueData: "{#ExpectedCommit}"; Flags: uninsdeletevalue
 Root: HKCU; Subkey: "Software\CodexBar\InstallV2"; ValueType: string; ValueName: "ExpectedManifestSha256"; ValueData: "{#ExpectedManifestSha256}"; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\CodexBar\InstallV2"; ValueType: string; ValueName: "ExpectedPayloadSha256"; ValueData: "{#PayloadFingerprint}"; Flags: uninsdeletevalue
 
 [Run]
 Filename: "{app}\codexbar.exe"; Parameters: "menubar"; Description: "Launch CodexBar"; Flags: nowait postinstall skipifsilent; Check: CanLaunchCodexBar
 
 [Code]
+#include "install-policy.iss"
+{ Inno Setup 6 is 32-bit. Explicitly use the installer's 64-bit registry view. }
+function GuardRegOpenKeyEx(Root: LongWord; SubKey: String; Options, Access: LongWord;
+  var Handle: LongWord): Longint;
+  external 'RegOpenKeyExW@advapi32.dll stdcall';
+function GuardRegCloseKey(Handle: LongWord): Longint;
+  external 'RegCloseKey@advapi32.dll stdcall';
+function GuardDirectoryExists(const Path: String): Boolean;
+begin
+  Result := DirExists(Path);
+end;
+function GuardReadString(const Key, Name: String; var Value: String): Boolean;
+begin
+  Result := RegQueryStringValue(HKCU64, Key, Name, Value);
+end;
+#include "install-registration.iss"
+
+function CleanupReadRun(const Name: String; var Command: String): Boolean;
+begin
+  Result := RegQueryStringValue(HKCU64, 'Software\Microsoft\Windows\CurrentVersion\Run', Name, Command);
+end;
+function CleanupDeleteRun(const Name: String): Boolean;
+begin
+  Result := RegDeleteValue(HKCU64, 'Software\Microsoft\Windows\CurrentVersion\Run', Name);
+end;
+#include "startup-cleanup.iss"
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  InstallRoot: String;
+  Existing: TInstalledBuild;
+begin
+  if CurUninstallStep <> usUninstall then exit;
+  InstallRoot := ExpandConstant('{localappdata}\Programs\CodexBar\v2');
+  if CompareText(ExpandConstant('{app}'), InstallRoot) <> 0 then exit;
+  { Read before Inno removes InstallV2 registration values. }
+  Existing := ReadInstalledBuild(InstallRoot);
+  if not CleanupInstalledStartup(Existing, InstallRoot,
+    '{#AppVersion}', '{#ExpectedCommit}', '{#ExpectedManifestSha256}', '{#PayloadFingerprint}') then
+    Log('CodexBar startup cleanup was incomplete; inspect the uninstall log.');
+end;
+
 var
   NeedsVCRedistRestart: Boolean;
   NeedsWebView2Restart: Boolean;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  InstallRoot: String;
+  Existing: TInstalledBuild;
 begin
   Result := '';
-  if CompareText(ExpandConstant('{app}'), ExpandConstant('{localappdata}\Programs\CodexBar\v2')) <> 0 then
+  InstallRoot := ExpandConstant('{localappdata}\Programs\CodexBar\v2');
+  if CompareText(ExpandConstant('{app}'), InstallRoot) <> 0 then begin
     Result := 'CodexBar must be installed in its registered v2 directory. Remove the /DIR override.';
+    exit;
+  end;
+  Existing := ReadInstalledBuild(InstallRoot);
+  Result := InstallationPolicyError(Existing, InstallRoot,
+    '{#AppVersion}', '{#ExpectedCommit}', '{#ExpectedManifestSha256}', '{#PayloadFingerprint}');
 end;
 
 function WebView2InstalledInView(RootKey: Integer): Boolean;

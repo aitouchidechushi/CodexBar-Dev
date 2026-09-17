@@ -337,14 +337,55 @@ pub fn verify_running_install() -> anyhow::Result<VerifiedInstallRegistration> {
 pub fn current_start_at_login_state() -> anyhow::Result<RunOwnershipState> {
     #[cfg(target_os = "windows")]
     {
-        let registration = verify_running_install()?;
+        let registration = read_windows_install_registration()?;
+        let local = dirs::data_local_dir()
+            .ok_or_else(|| anyhow::anyhow!("Windows local application directory is unavailable"))?;
         let registry = WindowsRunValueStore::open_current_user_read_only()?;
-        Ok(read_start_at_login_state(&registration, &registry))
+        Ok(read_start_at_login_state_for_executable(
+            &registration,
+            &local,
+            &std::env::current_exe()?,
+            &BuildIdentity::compiled(),
+            &registry,
+        )?)
     }
     #[cfg(not(target_os = "windows"))]
     {
         anyhow::bail!("Auto-start is only supported on Windows")
     }
+}
+
+#[cfg(any(target_os = "windows", test))]
+fn read_start_at_login_state_for_executable(
+    registration: &InstallRegistration,
+    local_app_data: &Path,
+    current_executable: &Path,
+    build: &BuildIdentity,
+    registry: &impl RunValueStore,
+) -> Result<RunOwnershipState, InstallOwnershipError> {
+    let verified = match verify_current_install(
+        registration, local_app_data, current_executable, build,
+    ) {
+        Ok(verified) => verified,
+        Err(error) if error.kind() == InstallOwnershipErrorKind::CurrentExecutableIsNotCanonical => {
+            // A matching installed CLI may observe startup state, but must not
+            // receive the ownership token used by mutation APIs.
+            let expected_root = canonicalize(
+                &local_app_data.join("Programs").join("CodexBar").join("v2"),
+                InstallOwnershipErrorKind::CanonicalInstallUnavailable,
+            )?;
+            let current = canonicalize(
+                current_executable,
+                InstallOwnershipErrorKind::CurrentExecutableUnavailable,
+            )?;
+            if !paths_equal(&current, &expected_root.join("codexbar-cli.exe")) {
+                return Err(error);
+            }
+            verify_current_install(registration, local_app_data, &registration.launcher_path, build)?
+        }
+        Err(error) => return Err(error),
+    };
+    Ok(read_start_at_login_state(&verified, registry))
 }
 
 pub fn current_start_at_login_enabled() -> anyhow::Result<bool> {
@@ -816,6 +857,50 @@ mod tests {
     #[derive(Default)]
     struct FakeRunValueStore {
         values: BTreeMap<String, String>,
+    }
+
+    #[test]
+    fn installed_cli_can_read_startup_state_without_acquiring_write_ownership() {
+        let directory = tempfile::tempdir().unwrap();
+        let local = directory.path().join("Local");
+        let root = local.join("Programs").join("CodexBar").join("v2");
+        fs::create_dir_all(&root).unwrap();
+        let launcher = root.join(CANONICAL_LAUNCHER_FILE_NAME);
+        let cli = root.join("codexbar-cli.exe");
+        fs::write(&launcher, b"launcher").unwrap();
+        fs::write(&cli, b"cli").unwrap();
+        let build = stable_build();
+        let registration = InstallRegistration {
+            install_root: root,
+            launcher_path: launcher.clone(),
+            app_id: CANONICAL_APP_ID.into(),
+            installed_version: build.semantic_version.clone(),
+            expected_commit: build.git_commit.clone(),
+            expected_manifest_sha256: build.package_manifest_sha256.clone(),
+        };
+        let mut registry = FakeRunValueStore::default();
+        assert_eq!(read_start_at_login_state_for_executable(
+            &registration, &local, &cli, &build, &registry,
+        ).unwrap(), RunOwnershipState::Disabled);
+        let verified = verify_current_install(&registration, &local, &launcher, &build).unwrap();
+        registry.values.insert(CANONICAL_RUN_VALUE.into(), verified.startup_command());
+        let before = registry.values.clone();
+        assert_eq!(read_start_at_login_state_for_executable(
+            &registration, &local, &cli, &build, &registry,
+        ).unwrap(), RunOwnershipState::OwnedCanonical);
+        assert_eq!(registry.values, before);
+        assert_eq!(verify_current_install(&registration, &local, &cli, &build)
+            .unwrap_err().kind(), InstallOwnershipErrorKind::CurrentExecutableIsNotCanonical);
+        let portable = directory.path().join("codexbar-cli.exe");
+        fs::write(&portable, b"portable").unwrap();
+        assert!(read_start_at_login_state_for_executable(
+            &registration, &local, &portable, &build, &registry,
+        ).is_err());
+        let mut wrong_build = build.clone();
+        wrong_build.git_commit = "different-build".into();
+        assert!(read_start_at_login_state_for_executable(
+            &registration, &local, &cli, &wrong_build, &registry,
+        ).is_err());
     }
 
     impl RunValueStore for FakeRunValueStore {
