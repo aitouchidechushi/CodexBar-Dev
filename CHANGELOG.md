@@ -1,5 +1,23 @@
 # Changelog
 
+## [Windows] 0.47.0 - Local acceptance build (unreleased)
+
+### Fixed
+- Preserve a successful Kimi browser refresh when another source for the same account fails authentication.
+- Mark cached browser quota as stale after a temporary refresh failure instead of reporting a fresh success.
+- Select the freshest successful account snapshot for audited shared monthly quotas.
+- Allow the installed CLI to query startup status without granting it desktop installation ownership.
+- Reject downgrade and different-payload same-version replacement in newly built installers.
+- Remove only installation-owned startup entries during uninstall, after checking build ownership and the command.
+
+### Validation boundaries
+- Real installation/upgrade/uninstall lifecycle acceptance remains pending.
+- Previously distributed installers do not gain the new protections retroactively.
+- This local binary is not published; binary release acceptance is separate from source publication.
+- The 0.47.0 source snapshot is submitted separately from binary releases; no 0.47.0 Release is created by this source update.
+- Known open issue: repeated launches of the portable development build can be blocked by startup ownership checks.
+- Update source remains disabled; update checking still conflates some request/parse failures with no available update.
+
 ## [Windows] 0.45.2 - 2026-07-21
 
 Windows port of upstream CodexBar **0.43.0 → 0.45.2** (providers, CLI, cost, and settings surfaces).
