@@ -56,7 +56,7 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 leveldb-forensic = "=0.1.2"
 
 # Encryption for cookie decryption
-aes-gcm = "0.10"
+aes-gcm = "0.11"
 base64 = "0.22"
 
 # Hashing for update verification
