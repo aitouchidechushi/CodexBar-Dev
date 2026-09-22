@@ -1,3 +1,5 @@
+import { ConcurrencyBadge } from "./ConcurrencyCheck";
+import ProviderConcurrencyResults from "./ProviderConcurrencyResults";
 import {
   Fragment,
   useCallback,
@@ -593,6 +595,7 @@ function CredentialQuotaCard({
           </div>
         )}
       </div>
+      <ConcurrencyBadge credentialId={credentialId} />
       {provider.error ? (
         <div className="menu-card__credential-error">
           {credentialErrorCategory(provider.error, t)}
@@ -1132,13 +1135,13 @@ export default function MenuCard({
 
       {hasDetails && <div className="menu-card__divider" />}
 
+      <div className="provider-diagnostic-line">
+        {providerGroup.isPartialFailure && <div className="menu-card__failed-count" role="status" aria-live="polite">{failedSummary}</div>}
+        <ProviderConcurrencyResults providerId={providerGroup.providerId} providerName={providerGroup.displayName} />
+      </div>
+
       {hasDetails && (
         <div className="menu-card__content">
-          {providerGroup.isPartialFailure && (
-            <div className="menu-card__failed-count" role="status" aria-live="polite">
-              {failedSummary}
-            </div>
-          )}
 
           {renderedSections ? renderedSections.map((section, sectionIndex) => {
             if (section.type === "provider-account") {

@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { listen } from "@tauri-apps/api/event";
+import ConcurrencyCheck from "../components/ConcurrencyCheck";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type { ApiKeyInfoBridge, BootstrapState } from "../types/bridge";
 import {
@@ -416,6 +417,7 @@ export default function PopOutPanel({
           onSelect={handleGridClick}
           onReorder={handleReorder}
         />
+        <ConcurrencyCheck />
         <button
           type="button"
           className="popout-provider-toolbar__action popout-provider-toolbar__refresh credential-btn"

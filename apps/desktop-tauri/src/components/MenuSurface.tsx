@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import { useLocale } from "../hooks/useLocale";
+import ConcurrencyCheck from "./ConcurrencyCheck";
 
 export interface MenuSurfaceAction {
   icon: string;
@@ -62,6 +63,7 @@ export default function MenuSurface({
       {titleBar}
       {banner}
       {summary}
+      {variant === "tray" && <ConcurrencyCheck />}
       <div className="menu-surface__body">{children}</div>
       {(footerLead || (footerRows && footerRows.length > 0)) && (
         <nav className="menu-surface__footer" aria-label={t("PanelMenu")}>

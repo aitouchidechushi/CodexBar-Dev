@@ -466,6 +466,9 @@ describe("PopOutPanel", () => {
     renderPopOut([provider("kimi", "Kimi", 20)]);
 
     const refresh = await screen.findByRole("button", { name: "Refresh all" });
+    const detection = screen.getByRole("button", { name: "检测并发" });
+    expect(refresh.previousElementSibling).toContainElement(detection);
+    expect(screen.getAllByRole("button", { name: "检测并发" })).toHaveLength(1);
     const addProvider = screen.getByRole("button", { name: "Add provider" });
 
     expect(refresh).toHaveClass("popout-provider-toolbar__action");

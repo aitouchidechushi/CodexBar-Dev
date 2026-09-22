@@ -1,0 +1,19 @@
+.provider-diagnostic-line { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.provider-diagnostic-line:empty { display: none; }
+.provider-diagnostic-line .menu-card__failed-count { margin: 0; }
+.concurrency-results-trigger { background: none; border: 0; color: var(--accent); font: inherit; font-size: 12px; padding: 4px 0; cursor: pointer; text-underline-offset: 3px; }
+.concurrency-results-trigger:hover { text-decoration: underline; }
+.concurrency-results-trigger:focus-visible, .concurrency-results-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.concurrency-results-card { position: fixed; z-index: 10000; box-sizing: border-box; overflow-y: auto; overscroll-behavior: contain; padding: 14px; border: 1px solid var(--text-secondary); border-radius: 10px; background: var(--menu-popover-bg, #242424); color: var(--text-primary, #f5f5f7); box-shadow: 0 8px 28px #0005; font-size: 12px; line-height: 1.5; }
+.concurrency-results-heading { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+.concurrency-results-heading > span, .concurrency-result-meta, .concurrency-results-note { color: var(--text-secondary); }
+.concurrency-results-summary { padding: 8px 0 10px; border-bottom: 1px solid color-mix(in srgb, var(--text-secondary) 25%, transparent); }
+.concurrency-result-row { padding: 10px 0; border-bottom: 1px solid color-mix(in srgb, var(--text-secondary) 18%, transparent); }
+.concurrency-result-title { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; overflow-wrap: anywhere; }
+.concurrency-result-status { font-size: 11px; padding: 2px 6px; border-radius: 5px; background: color-mix(in srgb, currentColor 9%, transparent); }
+.concurrency-result-status--danger, .concurrency-result-history { color: #e44949; }
+.concurrency-result-status--success { color: #29985a; }
+.concurrency-result-status--warning { color: #bc8523; }
+.concurrency-result-status--pending { color: var(--accent); }
+.concurrency-result-meta { font-size: 11px; margin-top: 4px; overflow-wrap: anywhere; }
+.concurrency-results-note { margin: 10px 0 0; font-size: 11px; }

@@ -3,7 +3,7 @@
 ## Source of truth
 
 - Status: Active；用户已于 2026-08-30 确认可靠性修复书面规格。
-- Last refreshed: 2026-08-30
+- Last refreshed: 2026-09-22（并发检测呈现增补；原可靠性设计保留）
 - Primary product surfaces: Windows 主窗口、托盘面板、托盘悬停窗口、FloatBar、悬浮额度窗口、设置窗口、关于与诊断界面、安装与升级流程。
 - Evidence reviewed: `README.md`、`README.zh-CN.md`、`docs/images/tray-panel.png`、`docs/images/settings-providers.png`、`apps/desktop-tauri/src/styles.css`、`apps/desktop-tauri/src/surfaces/`、`apps/desktop-tauri/src/floatbar/`、`apps/desktop-tauri/src/floating-quota/`、`apps/desktop-tauri/src/hooks/useProviders.ts`、Tauri/Rust 事件与持久化代码，以及 `docs/superpowers/specs/2026-08-30-codexbar-reliability-stabilization-design.md`。
 
@@ -93,5 +93,15 @@
 - Test/screenshot expectations: 所有新增状态有 Rust/TypeScript 单元测试；关键表面有组件测试；发布前在真实 Windows 上完成安装、升级、托盘隐藏、旧便携版和重启矩阵。
 
 ## Open questions
+
+## 并发检测结果呈现（2026-09-22 用户确认）
+
+- 统一按钮发起检测；不再在窗口顶部堆放完整结果。
+- 每个供应商在额度读取失败计数旁显示“并发检测结果”；没有失败时使用同一位置，仅有该供应商检测记录时显示入口。
+- 悬停入口展示仅属于该供应商的结果浮层；入口与浮层作为共同悬停区域，短暂跨越间距不隐藏，离开两者后隐藏。键盘聚焦可打开、Escape 可关闭。
+- 使用固定浮层避免被额度卡片裁切，避让窗口边缘，长结果可滚动；页面滚动或窗口失焦时关闭。
+- 使用账号标签、状态、次要模型与时间的层级；明确区分响应重叠、并发受限和未判定。历史受限结果不冒充当前结论。
+- 保留 Key 卡片上的受限异常提示，不修改额度统计或检测算法。
+- 2026-09-22 后续用户明确要求：移除二次确认表单，点击直接检测，主窗口按钮位于“刷新全部”左侧。保留按钮悬停费用说明、后台凭据范围绑定与取消功能，使用现有默认模型，不再在该流程展示模型编辑表单。
 
 - 当前没有阻塞书面设计评审的问题。代码签名证书属于发行环境依赖：有证书时必须签名；无证书时仍不得省略哈希、构建清单、不可变版本和所有可靠性门禁。

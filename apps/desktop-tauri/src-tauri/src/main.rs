@@ -162,6 +162,10 @@ fn main() {
         }))
         .plugin(shortcut_bridge::plugin())
         .invoke_handler(tauri::generate_handler![
+            commands::concurrency_preview,
+            commands::concurrency_start,
+            commands::concurrency_status,
+            commands::concurrency_cancel,
             commands::get_bootstrap_state,
             commands::get_provider_catalog,
             commands::get_settings_snapshot,

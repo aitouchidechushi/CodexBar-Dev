@@ -22,6 +22,7 @@ import { buildBundle } from "../test/localeHarness";
 import type { ProviderPresentationGroup } from "../lib/providerGroups";
 import type { ProviderUsageSnapshot } from "../types/bridge";
 import MenuCard from "./MenuCard";
+import { publishProbeState } from "../lib/concurrency";
 
 function rateWindow(
   usedPercent = 0,
@@ -188,6 +189,7 @@ describe("MenuCard", () => {
   });
 
   beforeEach(() => {
+    publishProbeState({ running: false, runId: 0, rows: [], warnings: [] });
     vi.clearAllMocks();
     tauriMocks.getLocaleStrings.mockResolvedValue(
       buildBundle({
@@ -428,6 +430,22 @@ describe("MenuCard", () => {
     expect(await screen.findByRole("region", { name: "Work" })).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("1 de 2 fallaron");
     expect(screen.queryByText("secret backend failure")).not.toBeInTheDocument();
+  });
+
+  it.each([false, true])("keeps the provider results entry in the failure row (quota failure=%s)", async (hasFailure) => {
+    publishProbeState({ running: false, runId: 1, warnings: [], rows: [
+      { providerId: "kimi", credentialId: "a", label: "Probe A", endpoint: "https://api.kimi.com", model: "kimi-for-coding", status: "passed" },
+    ] });
+    renderGroup(providerGroup([
+      { ...credential("a", "Work", 1, 30), providerId: "kimi", displayName: "Kimi" },
+      { ...credential("b", "Other", 2, 0, hasFailure ? "failed" : null), providerId: "kimi", displayName: "Kimi" },
+    ]));
+    const entry = await screen.findByRole("button", { name: "并发检测结果" });
+    const row = entry.parentElement!;
+    expect(row.querySelector(".menu-card__failed-count") !== null).toBe(hasFailure);
+    expect(screen.queryByText("Probe A")).not.toBeInTheDocument();
+    fireEvent.mouseEnter(entry);
+    expect(screen.getByRole("dialog", { name: "Kimi 并发检测结果" })).toHaveTextContent("Probe A");
   });
 
   it("keeps a temporarily stale API-key quota visible and labels the failed refresh", async () => {

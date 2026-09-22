@@ -256,6 +256,20 @@ pub fn decide_startup_ownership(
             continue;
         }
 
+        // The Windows inspector supplies our complete build identity only for
+        // the same canonical path and bytes owning the single-instance window.
+        // Distribution/channel is not authority to mutate anything here: this
+        // decision merely lets the plugin forward the launch before storage opens.
+        if build == &current.build
+            && is_sha256_hex(&current.executable_sha256)
+            && candidate
+                .executable_sha256
+                .eq_ignore_ascii_case(&current.executable_sha256)
+        {
+            same_or_newer.push(candidate.pid);
+            continue;
+        }
+
         if current.distribution != DistributionKind::InstalledStable
             || current.build.build_channel != BuildChannel::Stable
             || !is_sha256_hex(&current.executable_sha256)
@@ -266,16 +280,19 @@ pub fn decide_startup_ownership(
 
         match candidate.distribution {
             DistributionKind::InstalledStable => {
-                let Some(version_ordering) =
-                    compare_stable_versions(&build.semantic_version, &current.build.semantic_version)
-                else {
+                let Some(version_ordering) = compare_stable_versions(
+                    &build.semantic_version,
+                    &current.build.semantic_version,
+                ) else {
                     conflicts.push(safe_conflict(candidate));
                     continue;
                 };
                 match version_ordering {
                     Ordering::Greater => same_or_newer.push(candidate.pid),
                     Ordering::Equal
-                        if build.git_commit.eq_ignore_ascii_case(&current.build.git_commit)
+                        if build
+                            .git_commit
+                            .eq_ignore_ascii_case(&current.build.git_commit)
                             && candidate
                                 .executable_sha256
                                 .eq_ignore_ascii_case(&current.executable_sha256) =>
@@ -382,11 +399,9 @@ fn inspect_candidate_processes(
 ) -> Result<Vec<ProcessIdentity>, StartupPreflightError> {
     use windows_sys::Win32::{
         Foundation::{CloseHandle, INVALID_HANDLE_VALUE},
-        System::{
-            Diagnostics::ToolHelp::{
-                CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
-                TH32CS_SNAPPROCESS,
-            },
+        System::Diagnostics::ToolHelp::{
+            CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW,
+            TH32CS_SNAPPROCESS,
         },
     };
 
@@ -542,16 +557,41 @@ fn inspect_open_candidate_process(
         return unverifiable_candidate(pid, current_user_sid_hash, executable_path);
     };
 
+    candidate_from_inspected_image(
+        pid,
+        current_user_sid_hash,
+        runtime_identity,
+        executable_path,
+        executable_sha256,
+        local_app_data,
+        single_instance_target_process_id(),
+    )
+}
+
+#[cfg(target_os = "windows")]
+fn candidate_from_inspected_image(
+    pid: u32,
+    current_user_sid_hash: &str,
+    runtime_identity: &RuntimeIdentity,
+    executable_path: PathBuf,
+    executable_sha256: String,
+    local_app_data: &Path,
+    single_instance_pid: Option<u32>,
+) -> ProcessIdentity {
     let distribution = codexbar::install_ownership::classify_distribution_for_path(
         &executable_path,
         &runtime_identity.build,
         local_app_data,
     );
-    let evidence = if runtime_identity.distribution == DistributionKind::InstalledStable
-        && distribution == DistributionKind::InstalledStable
-        && paths_equal_for_startup(&executable_path, &runtime_identity.executable_path)
-        && executable_sha256.eq_ignore_ascii_case(&runtime_identity.executable_sha256)
-    {
+    let same_binary = paths_equal_for_startup(&executable_path, &runtime_identity.executable_path)
+        && is_sha256_hex(&runtime_identity.executable_sha256)
+        && is_sha256_hex(&executable_sha256)
+        && executable_sha256.eq_ignore_ascii_case(&runtime_identity.executable_sha256);
+    let same_instance = same_binary && single_instance_pid == Some(pid);
+    let same_canonical_install = same_binary
+        && runtime_identity.distribution == DistributionKind::InstalledStable
+        && distribution == DistributionKind::InstalledStable;
+    let evidence = if same_instance || same_canonical_install {
         ProcessEvidence::VerifiedCodexBar
     } else {
         ProcessEvidence::UnverifiableCandidate
@@ -562,7 +602,7 @@ fn inspect_open_candidate_process(
         user_sid_hash: current_user_sid_hash.to_string(),
         executable_path,
         executable_sha256,
-        build: None,
+        build: same_instance.then(|| runtime_identity.build.clone()),
         distribution,
         evidence,
     }
@@ -595,10 +635,7 @@ fn query_full_process_image_name(
 
     let mut buffer = vec![0_u16; 32_768];
     let mut length = buffer.len() as u32;
-    if unsafe {
-        QueryFullProcessImageNameW(process, 0, buffer.as_mut_ptr(), &mut length)
-    } == 0
-    {
+    if unsafe { QueryFullProcessImageNameW(process, 0, buffer.as_mut_ptr(), &mut length) } == 0 {
         return None;
     }
     Some(PathBuf::from(OsString::from_wide(
@@ -609,9 +646,7 @@ fn query_full_process_image_name(
 #[cfg(target_os = "windows")]
 fn sid_hash_for_process(process: windows_sys::Win32::Foundation::HANDLE) -> Option<String> {
     use windows_sys::Win32::{
-        Foundation::CloseHandle,
-        Security::TOKEN_QUERY,
-        System::Threading::OpenProcessToken,
+        Foundation::CloseHandle, Security::TOKEN_QUERY, System::Threading::OpenProcessToken,
     };
 
     let mut token = std::ptr::null_mut();
@@ -627,9 +662,7 @@ fn sid_hash_for_process(process: windows_sys::Win32::Foundation::HANDLE) -> Opti
 
 #[cfg(target_os = "windows")]
 fn sid_hash_for_token(token: windows_sys::Win32::Foundation::HANDLE) -> Option<String> {
-    use windows_sys::Win32::Security::{
-        GetLengthSid, GetTokenInformation, TokenUser, TOKEN_USER,
-    };
+    use windows_sys::Win32::Security::{GetLengthSid, GetTokenInformation, TOKEN_USER, TokenUser};
 
     let mut required_length = 0;
     unsafe {
@@ -814,6 +847,153 @@ mod tests {
         );
     }
 
+    #[test]
+    fn an_identical_verified_portable_dev_instance_hands_off() {
+        let mut build = stable_build("0.47.0", 'b');
+        build.build_channel = BuildChannel::Dev;
+        let current = StartupContext {
+            current_pid: 100,
+            current_user_sid_hash: "current-user".into(),
+            build: build.clone(),
+            distribution: DistributionKind::Unknown,
+            executable_sha256: "b".repeat(64),
+        };
+        let candidate = ProcessIdentity {
+            pid: 101,
+            user_sid_hash: "current-user".into(),
+            executable_path: PathBuf::from(r"C:\Tools\CodexBar-0.47.0-portable.exe"),
+            executable_sha256: "b".repeat(64),
+            build: Some(build),
+            distribution: DistributionKind::Unknown,
+            evidence: ProcessEvidence::VerifiedCodexBar,
+        };
+        assert_eq!(
+            decide_startup_ownership(&current, &[candidate]),
+            StartupDecision::HandOffToSameOrNewer { pid: 101 }
+        );
+    }
+
+    #[cfg(target_os = "windows")]
+    fn portable_runtime() -> RuntimeIdentity {
+        let mut build = stable_build("0.47.0", 'b');
+        build.build_channel = BuildChannel::Dev;
+        RuntimeIdentity {
+            build,
+            executable_path: PathBuf::from(r"C:\Tools\CodexBar-0.47.0-portable.exe"),
+            executable_sha256: "b".repeat(64),
+            pid: 100,
+            process_started_at: "2026-09-17T00:00:00Z".into(),
+            distribution: DistributionKind::Unknown,
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn inspected_portable_handoff_requires_matching_path_hash_and_receiver() {
+        let runtime = portable_runtime();
+        // Paths are already canonicalized at the OS boundary. The extended
+        // Windows spelling must compare equal to RuntimeIdentity's display path.
+        let cases = [
+            (
+                r"C:\Tools\CodexBar-0.47.0-portable.exe",
+                "b".repeat(64),
+                Some(101),
+                true,
+            ),
+            (
+                r"\\?\C:\TOOLS\CodexBar-0.47.0-portable.exe",
+                "B".repeat(64),
+                Some(101),
+                true,
+            ),
+            (
+                r"C:\Other\CodexBar-0.47.0-portable.exe",
+                "b".repeat(64),
+                Some(101),
+                false,
+            ),
+            (
+                r"C:\Tools\CodexBar-0.47.0-portable.exe",
+                "a".repeat(64),
+                Some(101),
+                false,
+            ),
+            (
+                r"C:\Tools\CodexBar-0.47.0-portable.exe",
+                String::new(),
+                Some(101),
+                false,
+            ),
+            (
+                r"C:\Tools\CodexBar-0.47.0-portable.exe",
+                "b".repeat(64),
+                None,
+                false,
+            ),
+            (
+                r"C:\Tools\CodexBar-0.47.0-portable.exe",
+                "b".repeat(64),
+                Some(102),
+                false,
+            ),
+        ];
+        for (path, hash, receiver, allowed) in cases {
+            let candidate = candidate_from_inspected_image(
+                101,
+                "current-user",
+                &runtime,
+                PathBuf::from(path),
+                hash,
+                Path::new(r"C:\Users\Example\AppData\Local"),
+                receiver,
+            );
+            let decision =
+                decide_for_runtime_identity(&runtime, "current-user".into(), &[candidate]);
+            if allowed {
+                assert_eq!(decision, StartupDecision::HandOffToSameOrNewer { pid: 101 });
+            } else {
+                assert!(
+                    matches!(decision, StartupDecision::BlockUnknownConflict { .. }),
+                    "{path}, {receiver:?}: {decision:?}"
+                );
+            }
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn matching_portable_hash_cannot_bypass_build_identity_or_other_conflicts() {
+        let runtime = portable_runtime();
+        let matching = candidate_from_inspected_image(
+            101,
+            "current-user",
+            &runtime,
+            runtime.executable_path.clone(),
+            "b".repeat(64),
+            Path::new(r"C:\Users\Example\AppData\Local"),
+            Some(101),
+        );
+        for mutation in 0..4 {
+            let mut candidate = matching.clone();
+            match mutation {
+                0 => candidate.build.as_mut().unwrap().git_commit = "a".repeat(40),
+                1 => candidate.build = None,
+                2 => candidate.executable_sha256 = "a".repeat(64),
+                _ => candidate.evidence = ProcessEvidence::UnverifiableCandidate,
+            }
+            assert!(matches!(
+                decide_for_runtime_identity(&runtime, "current-user".into(), &[candidate]),
+                StartupDecision::BlockUnknownConflict { .. }
+            ));
+        }
+        let foreign =
+            unverifiable_candidate(102, "current-user", PathBuf::from(r"C:\Other\codexbar.exe"));
+        assert!(matches!(
+            decide_for_runtime_identity(&runtime, "current-user".into(), &[matching, foreign]),
+            StartupDecision::BlockUnknownConflict { .. }
+        ));
+    }
+
     #[cfg(target_os = "windows")]
     #[test]
     fn singleton_probe_identifier_tracks_tauri_configuration() {
@@ -821,7 +1001,9 @@ mod tests {
             serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
 
         assert_eq!(
-            configuration.get("identifier").and_then(serde_json::Value::as_str),
+            configuration
+                .get("identifier")
+                .and_then(serde_json::Value::as_str),
             Some(SINGLE_INSTANCE_IDENTIFIER),
         );
     }

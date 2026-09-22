@@ -1,5 +1,38 @@
 # Changelog
 
+## [Windows] 0.48.2 - 2026-09-22 (owner accepted)
+
+- Start the concurrency batch directly on click, as requested; remove the extra confirmation form. Retain credential/endpoint binding, request limits and cancellation.
+- Place the main-window concurrency button immediately to the left of Refresh all. Per-provider hover results remain unchanged.
+
+## [Windows] 0.48.1 - Local acceptance build (unreleased)
+
+- Move concurrency results into per-provider hover cards beside the existing quota failure count; remove the global result list.
+- Keep results visible while crossing from trigger to card, allow scrolling, constrain the overlay to the viewport, and support keyboard focus/Escape.
+- Preserve the single batch detection action and per-Key restriction badges; no changes to paid request or verdict logic.
+
+## [Windows] 0.48.0 - Local acceptance build (unreleased)
+
+### Added
+- One user-confirmed concurrency diagnostic for enabled Kimi, MiniMax and GLM API Keys, with endpoint/model preview, progress and cancellation.
+- At most two requests per Key; no automatic checks, retries, fallback models or client impersonation. Calls may consume credits.
+- Distinguish explicit concurrency rejection from quota, generic rate limits, authentication, overload and inconclusive results. Display only confirmed restriction badges on Key cards.
+- Retain prior restriction evidence on an inconclusive recheck during this app session; invalidate evidence on Key/endpoint changes and clear after an overlapping two-stream pass.
+
+### Validation boundaries
+- This diagnostic observes the selected model at test time, not an exact permanent account concurrency limit. Other clients using the account can affect the result.
+- Live-provider paid checks require user acceptance; GPT/Codex is not supported in this first phase. No update source configured.
+
+## [Windows] 0.47.1 - Local acceptance build (unreleased)
+
+### Fixed
+- Allow a repeat launch of an identical portable/development binary to reach the single-instance handoff after verifying the same user, canonical path, file hash and receiver process.
+- Keep blocking unverified processes, different executable paths or bytes, and incomplete receiver evidence; no process is terminated automatically.
+
+### Validation boundaries
+- Real desktop reopen behavior still requires acceptance; the fix does not claim atomic process/window ownership across startup races.
+- Update source remains disabled. Update-check failure classification and real installer lifecycle validation remain open.
+
 ## [Windows] 0.47.0 - Local acceptance build (unreleased)
 
 ### Fixed

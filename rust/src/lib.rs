@@ -9,6 +9,7 @@ pub mod build_identity;
 pub mod cli;
 pub mod core;
 pub mod cost_scanner;
+pub mod concurrency_probe;
 pub mod host;
 pub mod install_ownership;
 pub mod locale;
