@@ -1,5 +1,15 @@
 # Changelog
 
+## [Windows] 0.48.3 - 2026-10-13
+
+### Fixed
+- Kimi 新订阅直接使用每个 Key 返回的月总额度和月 Code 额度，分别显示使用比例及重置时间，无需浏览器登录。
+- 保留旧订阅的周额度、五小时额度和浏览器月额度补充；兼容缺少旧式 usage 字段的响应。
+- 同一账号已严格匹配多个 Key 时，使用最新 API 月总额度，避免被浏览器缓存覆盖或重复显示。
+- 旧订阅零比例占位只在周期与重置时间匹配时使用可靠计数；月度窗口的显式零值保持不变。
+
+验证范围与已知限制见 PUBLICATION.md；本次未改变凭据存储格式或并发检测。
+
 ## [Windows] 0.48.2 - 2026-09-22 (owner accepted)
 
 - Start the concurrency batch directly on click, as requested; remove the extra confirmation form. Retain credential/endpoint binding, request limits and cancellation.

@@ -18,6 +18,9 @@ use crate::core::{
     RateWindow, SourceMode, UsageSnapshot,
 };
 
+mod ratio_pool;
+#[cfg(test)]
+mod subscription_pool_tests;
 mod web_session;
 pub use web_session::{
     KimiWebRequestContext, KimiWebTokenPair, parse_web_request_context, refresh_web_session,
@@ -45,8 +48,86 @@ const KIMI_CODE_CREDENTIAL_MIN_TTL_SECS: f64 = 60.0;
 struct KimiCodeApiUsageResponse {
     #[serde(default)]
     usage: Option<serde_json::Value>,
+    #[serde(default, deserialize_with = "deserialize_usage_pools")]
+    usages: Option<KimiCodeUsagePools>,
     #[serde(default)]
     limits: Option<Vec<serde_json::Value>>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct KimiCodeUsagePools {
+    #[serde(
+        default,
+        rename = "limit_5h",
+        deserialize_with = "deserialize_ratio_pool"
+    )]
+    session: Option<KimiRatioPool>,
+    #[serde(
+        default,
+        rename = "limit_7d",
+        deserialize_with = "deserialize_ratio_pool"
+    )]
+    weekly: Option<KimiRatioPool>,
+    #[serde(
+        default,
+        rename = "limit_month_total",
+        deserialize_with = "deserialize_ratio_pool"
+    )]
+    monthly: Option<KimiRatioPool>,
+    #[serde(
+        default,
+        rename = "limit_month_code",
+        deserialize_with = "deserialize_ratio_pool"
+    )]
+    monthly_code: Option<KimiRatioPool>,
+}
+
+fn deserialize_usage_pools<'de, D>(deserializer: D) -> Result<Option<KimiCodeUsagePools>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(value
+        .is_object()
+        .then(|| serde_json::from_value(value).ok())
+        .flatten())
+}
+
+fn deserialize_ratio_pool<'de, D>(deserializer: D) -> Result<Option<KimiRatioPool>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    // Preserve non-null pool presence even if malformed, so a monthly pool
+    // cannot accidentally enable legacy zero-placeholder reconciliation.
+    Ok((!value.is_null()).then(|| {
+        if value.is_object() {
+            serde_json::from_value(value).unwrap_or_default()
+        } else {
+            KimiRatioPool::default()
+        }
+    }))
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct KimiRatioPool {
+    used_ratio: Option<serde_json::Value>,
+    reset_time: Option<serde_json::Value>,
+}
+
+impl KimiRatioPool {
+    fn rate_window(&self, window_minutes: u32) -> Option<RateWindow> {
+        let ratio = value_as_f64(self.used_ratio.as_ref())?;
+        if !ratio.is_finite() || ratio < 0.0 {
+            return None;
+        }
+        Some(RateWindow::with_details(
+            ratio.min(1.0) * 100.0,
+            Some(window_minutes),
+            self.reset_time.as_ref().and_then(parse_kimi_timestamp),
+            None,
+        ))
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -389,17 +470,50 @@ impl KimiProvider {
     fn snapshot_from_code_api_response(
         response: KimiCodeApiUsageResponse,
     ) -> Result<UsageSnapshot, ProviderError> {
-        // Each quota is independent: a missing or malformed weekly quota must
-        // not discard a valid timed limit. Never substitute totalQuota for it.
-        let weekly = response
+        let legacy_weekly = response
             .usage
-            .and_then(|value| serde_json::from_value::<KimiUsageDetail>(value).ok())
-            .and_then(|detail| Self::rate_window_from_usage_detail(&detail, Some(10080)).ok());
-        let mut timed: Vec<RateWindow> = response
+            .as_ref()
+            .and_then(|value| serde_json::from_value::<KimiUsageDetail>(value.clone()).ok());
+        let limits: Vec<KimiRateLimit> = response
             .limits
-            .unwrap_or_default()
+            .as_ref()
             .into_iter()
-            .filter_map(|value| serde_json::from_value::<KimiRateLimit>(value).ok())
+            .flatten()
+            .filter_map(|value| serde_json::from_value(value.clone()).ok())
+            .collect();
+        let pools = response.usages.as_ref();
+        let weekly = pools
+            .and_then(|pools| pools.weekly.as_ref())
+            .and_then(|pool| {
+                ratio_pool::resolved_ratio_window(
+                    &response,
+                    pool,
+                    10080,
+                    legacy_weekly.iter().map(|detail| (detail, Some(10080))),
+                )
+            })
+            .or_else(|| {
+                legacy_weekly.as_ref().and_then(|detail| {
+                    Self::rate_window_from_usage_detail(detail, Some(10080)).ok()
+                })
+            });
+        let short = pools
+            .and_then(|pools| pools.session.as_ref())
+            .and_then(|pool| {
+                ratio_pool::resolved_ratio_window(
+                    &response,
+                    pool,
+                    300,
+                    limits.iter().map(|limit| {
+                        (
+                            &limit.detail,
+                            limit.window.as_ref().and_then(kimi_window_minutes),
+                        )
+                    }),
+                )
+            });
+        let mut timed: Vec<RateWindow> = limits
+            .iter()
             .filter_map(|limit| {
                 let minutes = limit
                     .window
@@ -409,16 +523,27 @@ impl KimiProvider {
                 Self::rate_window_from_usage_detail(&limit.detail, minutes).ok()
             })
             .collect();
-        // Prefer the familiar five-hour window without trusting server order.
+        if let Some(short) = short {
+            timed.retain(|window| window.window_minutes != Some(300));
+            timed.push(short);
+        }
         timed.sort_by_key(|window| (window.window_minutes != Some(300), window.window_minutes));
-        let mut windows = weekly
-            .into_iter()
-            .chain(timed)
-            .collect::<Vec<_>>()
-            .into_iter();
-        let primary = windows.next().ok_or_else(|| {
-            ProviderError::Parse("Kimi quota response contains no usable quota windows".into())
-        })?;
+        let total = pools
+            .and_then(|pools| pools.monthly.as_ref())
+            .and_then(|pool| pool.rate_window(43200));
+        let code = pools
+            .and_then(|pools| pools.monthly_code.as_ref())
+            .and_then(|pool| pool.rate_window(43200));
+        let mut windows = weekly.into_iter().chain(timed);
+        let primary = windows
+            .next()
+            .or_else(|| {
+                (total.is_some() || code.is_some())
+                    .then(|| RateWindow::informational("No short-term quota reported"))
+            })
+            .ok_or_else(|| {
+                ProviderError::Parse("Kimi quota response contains no usable quota windows".into())
+            })?;
         let mut usage = UsageSnapshot::new(primary).with_login_method("Code API");
         if let Some(secondary) = windows.next() {
             usage = usage.with_secondary(secondary);
@@ -430,7 +555,12 @@ impl KimiProvider {
                 window,
             );
         }
-
+        if let Some(total) = total {
+            usage = usage.with_extra_rate_window("kimi-monthly-total", "Monthly total", total);
+        }
+        if let Some(code) = code {
+            usage = usage.with_extra_rate_window("kimi-monthly-code", "Monthly Code", code);
+        }
         Ok(usage)
     }
 

@@ -147,6 +147,29 @@ export function providerGroupSections(
         claimedProviders.add(provider);
       }
     }
+    const apiProvider = matchedProviders.filter((provider) =>
+      provider.error == null && provider.refreshError == null &&
+      provider.extraRateWindows.some((quota) => quota.id === "kimi-monthly-total"),
+    ).sort((left, right) =>
+      (Date.parse(right.updatedAt) || 0) - (Date.parse(left.updatedAt) || 0),
+    )[0];
+    const apiTotal = apiProvider?.extraRateWindows.find((quota) => quota.id === "kimi-monthly-total");
+    if (apiTotal && apiProvider) {
+      return {
+        type: "kimi-account",
+        account: {
+          ...account,
+          usedPercent: apiTotal.window.usedPercent,
+          resetsAt: apiTotal.window.resetsAt,
+          updatedAt: apiProvider.updatedAt,
+          status: "ok",
+        },
+        providers: matchedProviders.map((provider) => ({
+          ...provider,
+          extraRateWindows: provider.extraRateWindows.filter((quota) => quota.id !== "kimi-monthly-total"),
+        })),
+      };
+    }
     return { type: "kimi-account", account, providers: matchedProviders };
   });
 

@@ -162,6 +162,28 @@ function renderGroup(
 }
 
 describe("MenuCard", () => {
+  it("shows both new Kimi key monthly pools without browser account grouping or a weekly quota", async () => {
+    tauriMocks.getLocaleStrings.mockResolvedValue(buildBundle({
+      ProviderMonthlyLabel: "月额度", ProviderRateLimitLabel: "五小时额度",
+    }));
+    const snapshot = {
+      ...credential("new-key", "New Kimi", 11, 31.6), providerId: "kimi", displayName: "Kimi",
+      primaryLabel: "Rate Limit",
+      primary: rateWindow(31.6, { windowMinutes: 300 }),
+      extraRateWindows: [
+        { id: "kimi-monthly-total", title: "Monthly total", window: rateWindow(11.18, { windowMinutes: 43200 }) },
+        { id: "kimi-monthly-code", title: "Monthly Code", window: rateWindow(16.03, { windowMinutes: 43200 }) },
+      ],
+    };
+    renderGroup(providerGroup([snapshot]), { groupKimiAccounts: false, showAsUsed: true });
+    const card = await screen.findByRole("region", { name: "New Kimi" });
+    expect(await within(card).findByText("五小时额度")).toBeInTheDocument();
+    expect(within(card).getByText("月额度")).toBeInTheDocument();
+    expect(within(card).getByText("月额度 · Code")).toBeInTheDocument();
+    expect(card.textContent).toContain("11%");
+    expect(card.textContent).toContain("16%");
+    expect(card.textContent).not.toContain("本周");
+  });
   it("shows a safe Kimi parsing category instead of hiding the cause or exposing raw errors", async () => {
     tauriMocks.getLocaleStrings.mockResolvedValue(buildBundle({
       ProviderErrorQuotaFormat: "额度数据格式不兼容或未提供有效额度",
