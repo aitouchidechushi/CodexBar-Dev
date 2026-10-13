@@ -165,6 +165,22 @@ function renderFloatBar(state: BootstrapState) {
 }
 
 describe("FloatBar", () => {
+  it.each(["kimi-monthly-total", "kimi-monthly-code"])("does not invent short-term capacity for a %s-only response", async (pool) => {
+    const provider: ProviderUsageSnapshot = {
+      ...snapshot("kimi", "Kimi", 0, { credentialId: "month-only", credentialDisplayLabel: "Monthly key" }),
+      primary: { ...rateWindow(0), isInformational: true },
+      extraRateWindows: [{ id: pool, title: "Monthly", window: { ...rateWindow(30), windowMinutes: 43200 } }],
+    };
+    const overrides = { enabledProviders: ["kimi"], providerOrder: ["kimi"], floatBarProviderIds: ["kimi"] };
+    tauriMocks.getCachedProviders.mockResolvedValue([provider]);
+    tauriMocks.getSettingsSnapshot.mockResolvedValue(settings(overrides));
+    const { container } = renderFloatBar(bootstrap(overrides));
+    await waitFor(() => expect(tauriMocks.getCachedProviders).toHaveBeenCalled());
+    if (pool === "kimi-monthly-total") await screen.findByRole("progressbar");
+    expect(container.querySelector(".floatbar__capacity-pill")).not.toBeInTheDocument();
+    expect(within(container).queryByText(/^100%$/)).not.toBeInTheDocument();
+    expect(within(container).queryByText(/^0%$/)).not.toBeInTheDocument();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     coreMocks.invoke.mockResolvedValue(undefined);

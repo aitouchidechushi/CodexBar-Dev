@@ -162,9 +162,10 @@ function renderGroup(
 }
 
 describe("MenuCard", () => {
-  it("shows both new Kimi key monthly pools without browser account grouping or a weekly quota", async () => {
+  it("shows one Kimi monthly total above its nested five-hour key card without a browser account", async () => {
     tauriMocks.getLocaleStrings.mockResolvedValue(buildBundle({
-      ProviderMonthlyLabel: "月额度", ProviderRateLimitLabel: "五小时额度",
+      ProviderMonthlyLabel: "月额度", KimiAccountMonthlyQuota: "月额度",
+      KimiAccountLinkedApiKeys: "此账号的 API Key", ProviderRateLimitLabel: "五小时额度",
     }));
     const snapshot = {
       ...credential("new-key", "New Kimi", 11, 31.6), providerId: "kimi", displayName: "Kimi",
@@ -175,13 +176,17 @@ describe("MenuCard", () => {
         { id: "kimi-monthly-code", title: "Monthly Code", window: rateWindow(16.03, { windowMinutes: 43200 }) },
       ],
     };
-    renderGroup(providerGroup([snapshot]), { groupKimiAccounts: false, showAsUsed: true });
+    const { container } = renderGroup(providerGroup([snapshot]), { groupKimiAccounts: false, showAsUsed: true });
     const card = await screen.findByRole("region", { name: "New Kimi" });
     expect(await within(card).findByText("五小时额度")).toBeInTheDocument();
-    expect(within(card).getByText("月额度")).toBeInTheDocument();
-    expect(within(card).getByText("月额度 · Code")).toBeInTheDocument();
-    expect(card.textContent).toContain("11%");
-    expect(card.textContent).toContain("16%");
+    const account = container.querySelector(".menu-card__kimi-account-group")!;
+    expect(account).toContainElement(card);
+    const monthly = within(account as HTMLElement).getByRole("progressbar");
+    expect(monthly).toHaveAttribute("aria-valuenow", "11");
+    expect(monthly.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getAllByText("月额度")).toHaveLength(1);
+    expect(screen.queryByText("月额度 · Code")).not.toBeInTheDocument();
+    expect(within(card).queryByRole("progressbar")).not.toBeInTheDocument();
     expect(card.textContent).not.toContain("本周");
   });
   it("shows a safe Kimi parsing category instead of hiding the cause or exposing raw errors", async () => {

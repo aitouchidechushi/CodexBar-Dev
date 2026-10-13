@@ -165,7 +165,7 @@ describe.each(["factory", "clinepass"])("%s shared quota freshness", (providerId
 });
 
 describe("groupProviderSnapshots", () => {
-  it("keeps failed-refresh API monthly quotas on their keys with the stale warning", () => {
+  it("retains a stale browser account without duplicating a failed-refresh API total on its key", () => {
     const key = snapshot("kimi", { credentialId: "cached-key" });
     key.refreshError = "Timeout";
     key.extraRateWindows = [{ id: "kimi-monthly-total", title: "Monthly total", window: monthlyRate(90, "2026-11-12T00:00:00Z") }];
@@ -177,8 +177,29 @@ describe("groupProviderSnapshots", () => {
     const [section] = providerGroupSections(group);
     if (section.type !== "kimi-account") throw new Error("Expected matched account");
     expect(section.account).toEqual(account);
-    expect(section.providers[0].extraRateWindows).toEqual(key.extraRateWindows);
+    expect(section.providers[0].extraRateWindows).toEqual([]);
+    expect(key.extraRateWindows).toHaveLength(1);
     expect(section.providers[0].refreshError).toBe("Timeout");
+  });
+  it("uses newer API cache when both monthly sources are stale, preserving browser identity", () => {
+    const key = snapshot("kimi", { credentialId: "cached-key" });
+    key.refreshError = "Timeout";
+    key.updatedAt = "2026-10-13T00:00:00Z";
+    key.extraRateWindows = [{ id: "kimi-monthly-total", title: "Monthly total", window: monthlyRate(90, "2026-11-12T00:00:00Z") }];
+    const account: KimiAccountSnapshot = {
+      accountId: "browser", displayName: "Original account", sourceLabels: ["Chrome · Profile 3"],
+      usedPercent: 20, resetsAt: null, updatedAt: "2026-10-01T00:00:00Z", status: "stale", matchedCredentialIds: ["cached-key"],
+    };
+    const [group] = groupProviderSnapshots([key], [], ["kimi"], [], [account]);
+    const [section] = providerGroupSections(group);
+    if (section.type !== "kimi-account") throw new Error("Expected matched account");
+    expect(section.account.usedPercent).toBe(90);
+    expect(section.account.status).toBe("stale");
+    expect(section.account.displayName).toBe(account.displayName);
+    expect(section.account.sourceLabels).toEqual(account.sourceLabels);
+    expect(section.providers[0].refreshError).toBe("Timeout");
+    expect(section.providers[0].extraRateWindows).toEqual([]);
+    expect(account.usedPercent).toBe(20);
   });
   it("chooses the freshest monthly total across strictly matched keys", () => {
     const older = snapshot("kimi", { credentialId: "older" });
@@ -215,9 +236,52 @@ describe("groupProviderSnapshots", () => {
     expect(section.account.usedPercent).toBe(65);
     expect(section.account.resetsAt).toBe("2026-11-12T00:00:00Z");
     expect(section.account.status).toBe("ok");
-    expect(section.providers[0].extraRateWindows.map((quota) => quota.id)).toEqual(["kimi-monthly-code"]);
+    expect(section.providers[0].extraRateWindows).toEqual([]);
     expect(key.extraRateWindows).toHaveLength(2);
     expect(account.usedPercent).toBe(20);
+  });
+  it("puts each unmatched Kimi monthly total in its own outer section without merging keys by labels", () => {
+    const keys = [12, 17].map((used, index) => ({
+      ...snapshot("kimi", { credentialId: `key-${index}`, label: "Same label" }),
+      extraRateWindows: [
+        { id: "kimi-monthly-total", title: "Monthly total", window: monthlyRate(used, "2026-11-12T00:00:00Z") },
+        { id: "kimi-monthly-code", title: "Monthly Code", window: monthlyRate(99, "2026-11-12T00:00:00Z") },
+      ],
+    }));
+    const [group] = groupProviderSnapshots(keys, [], ["kimi"]);
+    const sections = providerGroupSections(group);
+    expect(sections).toHaveLength(2);
+    const accountIds: string[] = [];
+    sections.forEach((section, index) => {
+      if (section.type !== "kimi-account") throw new Error("Expected API monthly section");
+      accountIds.push(section.account.accountId);
+      expect(section.account.usedPercent).toBe(index === 0 ? 12 : 17);
+      expect(section.providers.map((provider) => provider.credentialId)).toEqual([`key-${index}`]);
+      expect(section.providers[0].extraRateWindows).toEqual([]);
+    });
+    expect(new Set(accountIds).size).toBe(2);
+    expect(keys.every((key) => key.extraRateWindows.length === 2)).toBe(true);
+  });
+  it("does not turn a Code-only quota into a monthly total", () => {
+    const key = snapshot("kimi", { credentialId: "code-only" });
+    key.extraRateWindows = [{ id: "kimi-monthly-code", title: "Monthly Code", window: monthlyRate(99, "2026-11-12T00:00:00Z") }];
+    const [group] = groupProviderSnapshots([key], [], ["kimi"]);
+    const [section] = providerGroupSections(group);
+    expect(section.type).toBe("providers");
+    expect(section.providers[0].extraRateWindows).toEqual([]);
+    expect(key.extraRateWindows).toHaveLength(1);
+  });
+  it("preserves stale standalone API monthly data with its failed-refresh warning", () => {
+    const key = snapshot("kimi", { credentialId: "stale-api" });
+    key.refreshError = "Timeout";
+    key.extraRateWindows = [{ id: "kimi-monthly-total", title: "Monthly total", window: monthlyRate(30, "2026-11-12T00:00:00Z") }];
+    const [group] = groupProviderSnapshots([key], [], ["kimi"]);
+    const [section] = providerGroupSections(group);
+    if (section.type !== "kimi-account") throw new Error("Expected API monthly section");
+    expect(section.account.status).toBe("stale");
+    expect(section.account.usedPercent).toBe(30);
+    expect(section.providers[0].refreshError).toBe("Timeout");
+    expect(section.providers[0].extraRateWindows).toEqual([]);
   });
   it("returns one provider group in provider order with credentials ordered by ordinal", () => {
     const groups = groupProviderSnapshots(

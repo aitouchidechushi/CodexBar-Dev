@@ -91,8 +91,45 @@ function sharedMonthlyQuotas(
         selectedAt = updatedAt;
       }
     }
-    return selected ? [selected] : [];
+  return selected ? [selected] : [];
   });
+}
+
+function kimiMonthlyTotal(provider: ProviderUsageSnapshot) {
+  return provider.extraRateWindows.find((quota) =>
+    quota.id === "kimi-monthly-total" && Number.isFinite(quota.window.usedPercent),
+  );
+}
+
+function kimiChildProvider(provider: ProviderUsageSnapshot, suppressTotal = false): ProviderUsageSnapshot {
+  const extraRateWindows = provider.extraRateWindows.filter((quota) =>
+    quota.id !== "kimi-monthly-code" && (!suppressTotal || quota.id !== "kimi-monthly-total"),
+  );
+  return extraRateWindows.length === provider.extraRateWindows.length
+    ? provider
+    : { ...provider, extraRateWindows };
+}
+
+function kimiApiMonthlySection(provider: ProviderUsageSnapshot): ProviderPresentationSection | null {
+  const total = kimiMonthlyTotal(provider);
+  if (!total || provider.error != null) return null;
+  const keyName = provider.credentialDisplayLabel?.trim() || provider.displayName;
+  return {
+    type: "kimi-account",
+    account: {
+      // Presentation identity only: never persist this as a browser account or
+      // infer that different keys belong to one account from matching labels.
+      accountId: `kimi-api:${providerSnapshotIdentity(provider.providerId, provider.credentialId)}`,
+      displayName: provider.accountDisplayName?.trim() || `${provider.displayName} · ${keyName}`,
+      sourceLabels: [provider.sourceLabel],
+      usedPercent: total.window.usedPercent,
+      resetsAt: total.window.resetsAt,
+      updatedAt: provider.updatedAt,
+      status: provider.refreshError == null ? "ok" : "stale",
+      matchedCredentialIds: provider.credentialId ? [provider.credentialId] : [],
+    },
+    providers: [kimiChildProvider(provider, true)],
+  };
 }
 
 export function providerGroupSections(
@@ -128,8 +165,6 @@ export function providerGroupSections(
     if (ungrouped.length > 0) sections.push({ type: "providers", providers: ungrouped });
     return sections;
   }
-  if (accounts.length === 0) return [{ type: "providers", providers }];
-
   const firstProviderByCredential = new Map<string, ProviderUsageSnapshot>();
   for (const provider of providers) {
     if (provider.credentialId && !firstProviderByCredential.has(provider.credentialId)) {
@@ -147,13 +182,18 @@ export function providerGroupSections(
         claimedProviders.add(provider);
       }
     }
-    const apiProvider = matchedProviders.filter((provider) =>
-      provider.error == null && provider.refreshError == null &&
-      provider.extraRateWindows.some((quota) => quota.id === "kimi-monthly-total"),
+    const apiCandidates = matchedProviders.filter((provider) =>
+      provider.error == null &&
+      kimiMonthlyTotal(provider) != null,
     ).sort((left, right) =>
       (Date.parse(right.updatedAt) || 0) - (Date.parse(left.updatedAt) || 0),
-    )[0];
-    const apiTotal = apiProvider?.extraRateWindows.find((quota) => quota.id === "kimi-monthly-total");
+    );
+    const freshApi = apiCandidates.find((provider) => provider.refreshError == null);
+    const latestCache = apiCandidates[0];
+    const useApiCache = account.status !== "ok" && latestCache &&
+      (Date.parse(latestCache.updatedAt) || 0) > (Date.parse(account.updatedAt ?? "") || 0);
+    const apiProvider = freshApi ?? (useApiCache ? latestCache : undefined);
+    const apiTotal = apiProvider && kimiMonthlyTotal(apiProvider);
     if (apiTotal && apiProvider) {
       return {
         type: "kimi-account",
@@ -162,20 +202,23 @@ export function providerGroupSections(
           usedPercent: apiTotal.window.usedPercent,
           resetsAt: apiTotal.window.resetsAt,
           updatedAt: apiProvider.updatedAt,
-          status: "ok",
+          status: apiProvider.refreshError == null ? "ok" : "stale",
         },
-        providers: matchedProviders.map((provider) => ({
-          ...provider,
-          extraRateWindows: provider.extraRateWindows.filter((quota) => quota.id !== "kimi-monthly-total"),
-        })),
+        providers: matchedProviders.map((provider) => kimiChildProvider(provider, true)),
       };
     }
-    return { type: "kimi-account", account, providers: matchedProviders };
+    return { type: "kimi-account", account, providers: matchedProviders.map((provider) => kimiChildProvider(provider, true)) };
   });
 
   const unmatchedProviders = providers.filter((provider) => !claimedProviders.has(provider));
-  if (unmatchedProviders.length > 0) {
-    sections.push({ type: "kimi-unmatched", providers: unmatchedProviders });
+  const ordinaryProviders: ProviderUsageSnapshot[] = [];
+  for (const provider of unmatchedProviders) {
+    const apiSection = kimiApiMonthlySection(provider);
+    if (apiSection) sections.push(apiSection);
+    else ordinaryProviders.push(kimiChildProvider(provider));
+  }
+  if (ordinaryProviders.length > 0) {
+    sections.push({ type: accounts.length > 0 ? "kimi-unmatched" : "providers", providers: ordinaryProviders });
   }
   return sections;
 }

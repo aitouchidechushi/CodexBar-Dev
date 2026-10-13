@@ -1066,7 +1066,12 @@ export default function MenuCard({
     ? providerGroup.snapshots
     : successfulProviders;
   const renderedEntries = providerGroupEntries(providerGroup, renderedProviders);
-  const renderedSections = providerGroup.providerId !== "kimi" || groupKimiAccounts
+  const hasKimiApiMonthly = providerGroup.providerId === "kimi" && renderedProviders.some((provider) =>
+    provider.error == null && provider.extraRateWindows.some((quota) =>
+      quota.id === "kimi-monthly-total" && Number.isFinite(quota.window.usedPercent),
+    ),
+  );
+  const renderedSections = providerGroup.providerId !== "kimi" || groupKimiAccounts || hasKimiApiMonthly
     ? providerGroupSections(providerGroup, renderedProviders)
     : null;
   const hasQuotaDetails = renderedProviders.length > 0;

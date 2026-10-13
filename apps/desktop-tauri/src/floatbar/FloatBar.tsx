@@ -796,7 +796,7 @@ export default function FloatBar({ state }: { state: BootstrapState }) {
     return [
       ...(capacityQuotas.length > 0
         ? [renderProviderPill(group, provider, index, capacityQuotas, `${keyPrefix}:capacity`)]
-        : !hasMonthlyQuota
+        : !hasMonthlyQuota && !provider.primary.isInformational
           ? [renderProviderPill(group, provider, index)]
         : []),
       ...renderProviderMonthlyPills(group, provider, index, quotas, keyPrefix),
